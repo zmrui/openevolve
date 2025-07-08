@@ -265,6 +265,14 @@ class OpenEvolve:
             def signal_handler(signum, frame):
                 logger.info(f"Received signal {signum}, initiating graceful shutdown...")
                 self.parallel_controller.request_shutdown()
+                
+                # Set up a secondary handler for immediate exit if user presses Ctrl+C again
+                def force_exit_handler(signum, frame):
+                    logger.info("Force exit requested - terminating immediately")
+                    import sys
+                    sys.exit(0)
+                
+                signal.signal(signal.SIGINT, force_exit_handler)
             
             signal.signal(signal.SIGINT, signal_handler)
             signal.signal(signal.SIGTERM, signal_handler)
@@ -431,6 +439,11 @@ class OpenEvolve:
             start_iteration, max_iterations, target_score,
             checkpoint_callback=self._save_checkpoint
         )
+        
+        # Check if shutdown was requested
+        if self.parallel_controller.shutdown_flag.is_set():
+            logger.info("Evolution stopped due to shutdown request")
+            return
         
         # Save final checkpoint if needed
         final_iteration = start_iteration + max_iterations - 1

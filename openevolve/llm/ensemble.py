@@ -35,13 +35,16 @@ class LLMEnsemble:
             self.random_state.seed(models_cfg[0].random_seed)
             logger.debug(f"LLMEnsemble: Set random seed to {models_cfg[0].random_seed} for deterministic model selection")
 
-        logger.info(
-            f"Initialized LLM ensemble with models: "
-            + ", ".join(
-                f"{model.name} (weight: {weight:.2f})"
-                for model, weight in zip(models_cfg, self.weights)
+        # Only log if we have multiple models or this is the first ensemble
+        if len(models_cfg) > 1 or not hasattr(logger, '_ensemble_logged'):
+            logger.info(
+                f"Initialized LLM ensemble with models: "
+                + ", ".join(
+                    f"{model.name} (weight: {weight:.2f})"
+                    for model, weight in zip(models_cfg, self.weights)
+                )
             )
-        )
+            logger._ensemble_logged = True
 
     async def generate(self, prompt: str, **kwargs) -> str:
         """Generate text using a randomly selected model based on weights"""

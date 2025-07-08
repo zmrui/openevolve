@@ -28,7 +28,10 @@ class PromptSampler:
         self.system_template_override = None
         self.user_template_override = None
 
-        logger.info("Initialized prompt sampler")
+        # Only log once to reduce duplication
+        if not hasattr(logger, '_prompt_sampler_logged'):
+            logger.info("Initialized prompt sampler")
+            logger._prompt_sampler_logged = True
 
     def set_templates(
         self, system_template: Optional[str] = None, user_template: Optional[str] = None

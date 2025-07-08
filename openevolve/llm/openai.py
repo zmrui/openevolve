@@ -40,7 +40,13 @@ class OpenAILLM(LLMInterface):
             base_url=self.api_base,
         )
 
-        logger.info(f"Initialized OpenAI LLM with model: {self.model}")
+        # Only log unique models to reduce duplication
+        if not hasattr(logger, '_initialized_models'):
+            logger._initialized_models = set()
+        
+        if self.model not in logger._initialized_models:
+            logger.info(f"Initialized OpenAI LLM with model: {self.model}")
+            logger._initialized_models.add(self.model)
 
     async def generate(self, prompt: str, **kwargs) -> str:
         """Generate text from a prompt"""

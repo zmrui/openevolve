@@ -42,12 +42,40 @@ pip install -e .
 
 ### Quick Start
 
-We use the OpenAI SDK, so you can use any LLM or provider that supports an OpenAI compatible API. Just set the `OPENAI_API_KEY` environment variable
-and update the `api_base` in config.yaml if you are using a provider other than OpenAI. For local models, you can use
-an inference server like [optillm](https://github.com/codelion/optillm).
+#### Setting up LLM Access
+
+OpenEvolve uses the OpenAI SDK, which means it works with any LLM provider that supports an OpenAI-compatible API:
+
+1. **Set the API Key**: Export the `OPENAI_API_KEY` environment variable:
+   ```bash
+   export OPENAI_API_KEY=your-api-key-here
+   ```
+
+2. **Using Alternative LLM Providers**: 
+   - For providers other than OpenAI (e.g., Anthropic, Cohere, local models), update the `api_base` in your config.yaml:
+   ```yaml
+   llm:
+     api_base: "https://your-provider-endpoint.com/v1"
+   ```
+   
+3. **Maximum Flexibility with optillm**: 
+   - For advanced routing, rate limiting, or using multiple providers, we recommend [optillm](https://github.com/codelion/optillm)
+   - optillm acts as a proxy that can route requests to different LLMs based on your rules
+   - Simply point `api_base` to your optillm instance:
+   ```yaml
+   llm:
+     api_base: "http://localhost:8000/v1"
+   ```
+
+This setup ensures OpenEvolve can work with any LLM provider - OpenAI, Anthropic, Google, Cohere, local models via Ollama/vLLM, or any OpenAI-compatible endpoint.
 
 ```python
+import os
 from openevolve import OpenEvolve
+
+# Ensure API key is set
+if not os.environ.get("OPENAI_API_KEY"):
+    raise ValueError("Please set OPENAI_API_KEY environment variable")
 
 # Initialize the system
 evolve = OpenEvolve(

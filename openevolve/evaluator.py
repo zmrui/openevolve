@@ -89,9 +89,41 @@ class Evaluator:
 
             self.evaluate_function = module.evaluate
             logger.info(f"Successfully loaded evaluation function from {self.evaluation_file}")
+            
+            # Validate cascade configuration
+            self._validate_cascade_configuration(module)
         except Exception as e:
             logger.error(f"Error loading evaluation function: {str(e)}")
             raise
+
+    def _validate_cascade_configuration(self, module) -> None:
+        """
+        Validate cascade evaluation configuration and warn about potential issues
+        
+        Args:
+            module: The loaded evaluation module
+        """
+        if self.config.cascade_evaluation:
+            # Check if cascade functions exist
+            has_stage1 = hasattr(module, "evaluate_stage1")
+            has_stage2 = hasattr(module, "evaluate_stage2") 
+            has_stage3 = hasattr(module, "evaluate_stage3")
+            
+            if not has_stage1:
+                logger.warning(
+                    f"Configuration has 'cascade_evaluation: true' but evaluator "
+                    f"'{self.evaluation_file}' does not define 'evaluate_stage1' function. "
+                    f"This will fall back to direct evaluation, making the cascade setting useless. "
+                    f"Consider setting 'cascade_evaluation: false' or implementing cascade functions."
+                )
+            elif not (has_stage2 or has_stage3):
+                logger.warning(
+                    f"Evaluator '{self.evaluation_file}' defines 'evaluate_stage1' but no additional "
+                    f"cascade stages (evaluate_stage2, evaluate_stage3). Consider implementing "
+                    f"multi-stage evaluation for better cascade benefits."
+                )
+            else:
+                logger.debug(f"Cascade evaluation properly configured with available stage functions")
 
     async def evaluate_program(
         self,
@@ -273,7 +305,7 @@ class Evaluator:
         """
         return self._pending_artifacts.pop(program_id, None)
 
-    async def _direct_evaluate(self, program_path: str) -> Dict[str, float]:
+    async def _direct_evaluate(self, program_path: str) -> Union[Dict[str, float], EvaluationResult]:
         """
         Directly evaluate a program using the evaluation function with timeout
 
@@ -281,7 +313,7 @@ class Evaluator:
             program_path: Path to the program file
 
         Returns:
-            Dictionary of metric name to score
+            Dictionary of metrics or EvaluationResult with metrics and artifacts
 
         Raises:
             asyncio.TimeoutError: If evaluation exceeds timeout
@@ -296,11 +328,8 @@ class Evaluator:
         # Run the evaluation with timeout - let exceptions bubble up for retry handling
         result = await asyncio.wait_for(run_evaluation(), timeout=self.config.timeout)
 
-        # Validate result
-        if not isinstance(result, dict):
-            logger.warning(f"Evaluation returned non-dictionary result: {result}")
-            return {"error": 0.0}
-
+        # Return result as-is to be processed by _process_evaluation_result
+        # This supports both dict and EvaluationResult returns, just like _cascade_evaluate
         return result
 
     async def _cascade_evaluate(

@@ -53,16 +53,18 @@ async def run_iteration_with_shared_db(
         # Get artifacts for the parent program if available
         parent_artifacts = database.get_artifacts(parent.id)
 
-        # Get actual top programs for prompt context (separate from inspirations)
-        actual_top_programs = database.get_top_programs(5)
+        # Get island-specific top programs for prompt context (maintain island isolation)
+        parent_island = parent.metadata.get("island", database.current_island)
+        island_top_programs = database.get_top_programs(5, island_idx=parent_island)
+        island_previous_programs = database.get_top_programs(3, island_idx=parent_island)
 
         # Build prompt
         prompt = prompt_sampler.build_prompt(
             current_program=parent.code,
             parent_program=parent.code,
             program_metrics=parent.metrics,
-            previous_programs=[p.to_dict() for p in database.get_top_programs(3)],
-            top_programs=[p.to_dict() for p in actual_top_programs],
+            previous_programs=[p.to_dict() for p in island_previous_programs],
+            top_programs=[p.to_dict() for p in island_top_programs],
             inspirations=[p.to_dict() for p in inspirations],
             language=config.language,
             evolution_round=iteration,

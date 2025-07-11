@@ -189,6 +189,28 @@ class ProgramDatabase:
                 should_replace = self._is_better(program, self.programs[existing_program_id])
 
         if should_replace:
+            # Log significant MAP-Elites events
+            coords_dict = {self.config.feature_dimensions[i]: feature_coords[i] for i in range(len(feature_coords))}
+            
+            if feature_key not in self.feature_map:
+                # New cell occupation
+                logging.info("New MAP-Elites cell occupied: %s", coords_dict)
+                # Check coverage milestone
+                total_possible_cells = self.feature_bins ** len(self.config.feature_dimensions)
+                coverage = (len(self.feature_map) + 1) / total_possible_cells
+                if coverage in [0.1, 0.25, 0.5, 0.75, 0.9]:
+                    logging.info("MAP-Elites coverage reached %.1f%% (%d/%d cells)", 
+                               coverage * 100, len(self.feature_map) + 1, total_possible_cells)
+            else:
+                # Cell replacement - existing program being replaced
+                existing_program_id = self.feature_map[feature_key]
+                if existing_program_id in self.programs:
+                    existing_program = self.programs[existing_program_id]
+                    new_fitness = safe_numeric_average(program.metrics)
+                    existing_fitness = safe_numeric_average(existing_program.metrics)
+                    logging.info("MAP-Elites cell improved: %s (fitness: %.3f -> %.3f)", 
+                               coords_dict, existing_fitness, new_fitness)
+            
             self.feature_map[feature_key] = program.id
 
         # Add to specific island (not random!)
@@ -515,6 +537,9 @@ class ProgramDatabase:
                 feature_keys_to_remove.append(key)
         for key in feature_keys_to_remove:
             del self.feature_map[key]
+        
+        # Clean up island best programs - remove stale references
+        self._cleanup_stale_island_bests()
 
         # Check best program
         if self.best_program_id and self.best_program_id not in self.programs:
@@ -641,7 +666,8 @@ class ProgramDatabase:
             else:
                 # Default to middle bin if feature not found
                 coords.append(self.feature_bins // 2)
-        logging.info(
+        # Only log coordinates at debug level for troubleshooting
+        logging.debug(
             "MAP-Elites coords: %s",
             str({self.config.feature_dimensions[i]: coords[i] for i in range(len(coords))}),
         )
@@ -1138,6 +1164,9 @@ class ProgramDatabase:
             logger.debug(f"Removed program {program_id} due to population limit")
 
         logger.info(f"Population size after cleanup: {len(self.programs)}")
+        
+        # Clean up any stale island best program references after removal
+        self._cleanup_stale_island_bests()
 
     # Island management methods
     def set_current_island(self, island_idx: int) -> None:
@@ -1215,13 +1244,102 @@ class ProgramDatabase:
                     # Update island-specific best program if migrant is better
                     self._update_island_best_program(migrant_copy, target_island)
 
-                    logger.debug(
-                        f"Migrated program {migrant.id} from island {i} to island {target_island}"
-                    )
+                    # Log migration with MAP-Elites coordinates
+                    feature_coords = self._calculate_feature_coords(migrant_copy)
+                    coords_dict = {self.config.feature_dimensions[j]: feature_coords[j] for j in range(len(feature_coords))}
+                    logger.info("Program migrated to island %d at MAP-Elites coords: %s", 
+                              target_island, coords_dict)
 
         # Update last migration generation
         self.last_migration_generation = max(self.island_generations)
         logger.info(f"Migration completed at generation {self.last_migration_generation}")
+        
+        # Validate migration results
+        self._validate_migration_results()
+
+    def _validate_migration_results(self) -> None:
+        """
+        Validate migration didn't create inconsistencies
+        
+        Checks that:
+        1. Program island metadata matches actual island assignment
+        2. No programs are assigned to multiple islands
+        3. All island best programs exist and are in correct islands
+        """
+        seen_program_ids = set()
+        
+        for i, island in enumerate(self.islands):
+            for program_id in island:
+                # Check for duplicate assignments
+                if program_id in seen_program_ids:
+                    logger.error(f"Program {program_id} assigned to multiple islands")
+                    continue
+                seen_program_ids.add(program_id)
+                
+                # Check program exists
+                if program_id not in self.programs:
+                    logger.warning(f"Island {i} contains nonexistent program {program_id}")
+                    continue
+                    
+                # Check metadata consistency
+                program = self.programs[program_id]
+                stored_island = program.metadata.get("island")
+                if stored_island != i:
+                    logger.warning(
+                        f"Island mismatch for program {program_id}: "
+                        f"in island {i} but metadata says {stored_island}"
+                    )
+        
+        # Validate island best programs
+        for i, best_id in enumerate(self.island_best_programs):
+            if best_id is not None:
+                if best_id not in self.programs:
+                    logger.warning(f"Island {i} best program {best_id} does not exist")
+                elif best_id not in self.islands[i]:
+                    logger.warning(f"Island {i} best program {best_id} not in island")
+
+    def _cleanup_stale_island_bests(self) -> None:
+        """
+        Remove stale island best program references
+        
+        Cleans up references to programs that no longer exist in the database
+        or are not actually in their assigned islands.
+        """
+        cleaned_count = 0
+        
+        for i, best_id in enumerate(self.island_best_programs):
+            if best_id is not None:
+                should_clear = False
+                
+                # Check if program still exists
+                if best_id not in self.programs:
+                    logger.debug(f"Clearing stale island {i} best program {best_id} (program deleted)")
+                    should_clear = True
+                # Check if program is still in the island
+                elif best_id not in self.islands[i]:
+                    logger.debug(f"Clearing stale island {i} best program {best_id} (not in island)")
+                    should_clear = True
+                
+                if should_clear:
+                    self.island_best_programs[i] = None
+                    cleaned_count += 1
+        
+        if cleaned_count > 0:
+            logger.info(f"Cleaned up {cleaned_count} stale island best program references")
+            
+            # Recalculate best programs for islands that were cleared
+            for i, best_id in enumerate(self.island_best_programs):
+                if best_id is None and len(self.islands[i]) > 0:
+                    # Find new best program for this island
+                    island_programs = [self.programs[pid] for pid in self.islands[i] if pid in self.programs]
+                    if island_programs:
+                        # Sort by fitness and update
+                        best_program = max(
+                            island_programs,
+                            key=lambda p: p.metrics.get("combined_score", safe_numeric_average(p.metrics))
+                        )
+                        self.island_best_programs[i] = best_program.id
+                        logger.debug(f"Recalculated island {i} best program: {best_program.id}")
 
     def get_island_stats(self) -> List[dict]:
         """Get statistics for each island"""

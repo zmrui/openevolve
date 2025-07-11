@@ -383,13 +383,14 @@ class Evaluator:
                 )
             except Exception as e:
                 logger.error(f"Error in stage 1 evaluation: {str(e)}")
-                # Capture stage 1 failure as artifacts
+                # Capture stage 1 failure with enhanced context
+                error_context = self._create_cascade_error_context("stage1", e)
                 return EvaluationResult(
                     metrics={"stage1_passed": 0.0, "error": 0.0},
                     artifacts={
                         "stderr": str(e),
                         "traceback": traceback.format_exc(),
-                        "failure_stage": "stage1",
+                        **error_context,
                     },
                 )
 
@@ -510,13 +511,14 @@ class Evaluator:
 
         except Exception as e:
             logger.error(f"Error in cascade evaluation: {str(e)}")
-            # Return proper cascade failure result instead of re-raising
+            # Return proper cascade failure result with enhanced context
+            error_context = self._create_cascade_error_context("cascade_setup", e)
             return EvaluationResult(
                 metrics={"stage1_passed": 0.0, "error": 0.0},
                 artifacts={
                     "stderr": str(e),
                     "traceback": traceback.format_exc(),
-                    "failure_stage": "cascade_setup",
+                    **error_context,
                 },
             )
 
@@ -610,6 +612,29 @@ class Evaluator:
             logger.error(f"Error in LLM evaluation: {str(e)}")
             traceback.print_exc()
             return {}
+
+    def _create_cascade_error_context(self, stage: str, error: Exception) -> dict:
+        """
+        Create rich error context for cascade failures
+        
+        Args:
+            stage: The stage where the error occurred
+            error: The exception that was raised
+            
+        Returns:
+            Dictionary with enhanced error context
+        """
+        import time
+        return {
+            "failure_stage": stage,
+            "error_type": type(error).__name__,
+            "error_message": str(error),
+            "timestamp": time.time(),
+            "cascade_config": self.config.cascade_evaluation,
+            "cascade_thresholds": getattr(self.config, 'cascade_thresholds', []),
+            "timeout_config": self.config.timeout,
+            "evaluation_file": self.evaluation_file,
+        }
 
     def _passes_threshold(self, metrics: Dict[str, float], threshold: float) -> bool:
         """

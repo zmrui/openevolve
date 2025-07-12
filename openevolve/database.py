@@ -9,6 +9,7 @@ import os
 import random
 import time
 from dataclasses import asdict, dataclass, field, fields
+
 # FileLock removed - no longer needed with threaded parallel processing
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -121,6 +122,9 @@ class ProgramDatabase:
 
         # Track the absolute best program separately
         self.best_program_id: Optional[str] = None
+        
+        # Track best program per island for proper island-based evolution
+        self.island_best_programs: List[Optional[str]] = [None] * config.num_islands
 
         # Track the last iteration number (for resuming)
         self.last_iteration: int = 0
@@ -185,6 +189,28 @@ class ProgramDatabase:
                 should_replace = self._is_better(program, self.programs[existing_program_id])
 
         if should_replace:
+            # Log significant MAP-Elites events
+            coords_dict = {self.config.feature_dimensions[i]: feature_coords[i] for i in range(len(feature_coords))}
+            
+            if feature_key not in self.feature_map:
+                # New cell occupation
+                logging.info("New MAP-Elites cell occupied: %s", coords_dict)
+                # Check coverage milestone
+                total_possible_cells = self.feature_bins ** len(self.config.feature_dimensions)
+                coverage = (len(self.feature_map) + 1) / total_possible_cells
+                if coverage in [0.1, 0.25, 0.5, 0.75, 0.9]:
+                    logging.info("MAP-Elites coverage reached %.1f%% (%d/%d cells)", 
+                               coverage * 100, len(self.feature_map) + 1, total_possible_cells)
+            else:
+                # Cell replacement - existing program being replaced
+                existing_program_id = self.feature_map[feature_key]
+                if existing_program_id in self.programs:
+                    existing_program = self.programs[existing_program_id]
+                    new_fitness = safe_numeric_average(program.metrics)
+                    existing_fitness = safe_numeric_average(existing_program.metrics)
+                    logging.info("MAP-Elites cell improved: %s (fitness: %.3f -> %.3f)", 
+                               coords_dict, existing_fitness, new_fitness)
+            
             self.feature_map[feature_key] = program.id
 
         # Add to specific island (not random!)
@@ -198,17 +224,21 @@ class ProgramDatabase:
         # Update archive
         self._update_archive(program)
 
-        # Update the absolute best program tracking
+        # Enforce population size limit BEFORE updating best program tracking
+        # This ensures newly added programs aren't immediately removed
+        self._enforce_population_limit(exclude_program_id=program.id)
+
+        # Update the absolute best program tracking (after population enforcement)
         self._update_best_program(program)
+        
+        # Update island-specific best program tracking
+        self._update_island_best_program(program, island_idx)
 
         # Save to disk if configured
         if self.config.db_path:
             self._save_program(program)
 
         logger.debug(f"Added program {program.id} to island {island_idx}")
-
-        # Enforce population size limit
-        self._enforce_population_limit()
 
         return program.id
 
@@ -254,9 +284,15 @@ class ProgramDatabase:
             return None
 
         # If no specific metric and we have a tracked best program, return it
-        if metric is None and self.best_program_id and self.best_program_id in self.programs:
-            logger.debug(f"Using tracked best program: {self.best_program_id}")
-            return self.programs[self.best_program_id]
+        if metric is None and self.best_program_id:
+            if self.best_program_id in self.programs:
+                logger.debug(f"Using tracked best program: {self.best_program_id}")
+                return self.programs[self.best_program_id]
+            else:
+                logger.warning(
+                    f"Tracked best program {self.best_program_id} no longer exists, will recalculate"
+                )
+                self.best_program_id = None
 
         if metric:
             # Sort by specific metric
@@ -307,13 +343,14 @@ class ProgramDatabase:
 
         return sorted_programs[0] if sorted_programs else None
 
-    def get_top_programs(self, n: int = 10, metric: Optional[str] = None) -> List[Program]:
+    def get_top_programs(self, n: int = 10, metric: Optional[str] = None, island_idx: Optional[int] = None) -> List[Program]:
         """
         Get the top N programs based on a metric
 
         Args:
             n: Number of programs to return
             metric: Metric to use for ranking (uses average if None)
+            island_idx: If specified, only return programs from this island
 
         Returns:
             List of top programs
@@ -321,17 +358,32 @@ class ProgramDatabase:
         if not self.programs:
             return []
 
+        # Get candidate programs
+        if island_idx is not None:
+            # Island-specific query
+            island_programs = [
+                self.programs[pid] for pid in self.islands[island_idx]
+                if pid in self.programs
+            ]
+            candidates = island_programs
+        else:
+            # Global query
+            candidates = list(self.programs.values())
+        
+        if not candidates:
+            return []
+
         if metric:
             # Sort by specific metric
             sorted_programs = sorted(
-                [p for p in self.programs.values() if metric in p.metrics],
+                [p for p in candidates if metric in p.metrics],
                 key=lambda p: p.metrics[metric],
                 reverse=True,
             )
         else:
             # Sort by average of all numeric metrics
             sorted_programs = sorted(
-                self.programs.values(),
+                candidates,
                 key=lambda p: safe_numeric_average(p.metrics),
                 reverse=True,
             )
@@ -371,6 +423,7 @@ class ProgramDatabase:
             "islands": [list(island) for island in self.islands],
             "archive": list(self.archive),
             "best_program_id": self.best_program_id,
+            "island_best_programs": self.island_best_programs,
             "last_iteration": iteration or self.last_iteration,
             "current_island": self.current_island,
             "island_generations": self.island_generations,
@@ -404,6 +457,7 @@ class ProgramDatabase:
             saved_islands = metadata.get("islands", [])
             self.archive = set(metadata.get("archive", []))
             self.best_program_id = metadata.get("best_program_id")
+            self.island_best_programs = metadata.get("island_best_programs", [None] * len(saved_islands))
             self.last_iteration = metadata.get("last_iteration", 0)
             self.current_island = metadata.get("current_island", 0)
             self.island_generations = metadata.get("island_generations", [0] * len(saved_islands))
@@ -432,6 +486,10 @@ class ProgramDatabase:
         # Ensure island_generations list has correct length
         if len(self.island_generations) != len(self.islands):
             self.island_generations = [0] * len(self.islands)
+            
+        # Ensure island_best_programs list has correct length
+        if len(self.island_best_programs) != len(self.islands):
+            self.island_best_programs = [None] * len(self.islands)
 
         logger.info(f"Loaded database with {len(self.programs)} programs from {path}")
 
@@ -479,6 +537,9 @@ class ProgramDatabase:
                 feature_keys_to_remove.append(key)
         for key in feature_keys_to_remove:
             del self.feature_map[key]
+        
+        # Clean up island best programs - remove stale references
+        self._cleanup_stale_island_bests()
 
         # Check best program
         if self.best_program_id and self.best_program_id not in self.programs:
@@ -605,7 +666,8 @@ class ProgramDatabase:
             else:
                 # Default to middle bin if feature not found
                 coords.append(self.feature_bins // 2)
-        logging.info(
+        # Only log coordinates at debug level for troubleshooting
+        logging.debug(
             "MAP-Elites coords: %s",
             str({self.config.feature_dimensions[i]: coords[i] for i in range(len(coords))}),
         )
@@ -713,7 +775,15 @@ class ProgramDatabase:
             logger.debug(f"Set initial best program to {program.id}")
             return
 
-        # Compare with current best program
+        # Compare with current best program (if it still exists)
+        if self.best_program_id not in self.programs:
+            logger.warning(
+                f"Best program {self.best_program_id} no longer exists, clearing reference"
+            )
+            self.best_program_id = program.id
+            logger.info(f"Set new best program to {program.id}")
+            return
+
         current_best = self.programs[self.best_program_id]
 
         # Update if the new program is better
@@ -731,6 +801,53 @@ class ProgramDatabase:
                 )
             else:
                 logger.info(f"New best program {program.id} replaces {old_id}")
+
+    def _update_island_best_program(self, program: Program, island_idx: int) -> None:
+        """
+        Update the best program tracking for a specific island
+        
+        Args:
+            program: Program to consider as the new best for the island
+            island_idx: Island index
+        """
+        # Ensure island_idx is valid
+        if island_idx >= len(self.island_best_programs):
+            logger.warning(f"Invalid island index {island_idx}, skipping island best update")
+            return
+            
+        # If island doesn't have a best program yet, this becomes the best
+        current_island_best_id = self.island_best_programs[island_idx]
+        if current_island_best_id is None:
+            self.island_best_programs[island_idx] = program.id
+            logger.debug(f"Set initial best program for island {island_idx} to {program.id}")
+            return
+            
+        # Check if current best still exists
+        if current_island_best_id not in self.programs:
+            logger.warning(
+                f"Island {island_idx} best program {current_island_best_id} no longer exists, updating to {program.id}"
+            )
+            self.island_best_programs[island_idx] = program.id
+            return
+            
+        current_island_best = self.programs[current_island_best_id]
+        
+        # Update if the new program is better
+        if self._is_better(program, current_island_best):
+            old_id = current_island_best_id
+            self.island_best_programs[island_idx] = program.id
+            
+            # Log the change
+            if "combined_score" in program.metrics and "combined_score" in current_island_best.metrics:
+                old_score = current_island_best.metrics["combined_score"]
+                new_score = program.metrics["combined_score"]
+                score_diff = new_score - old_score
+                logger.debug(
+                    f"Island {island_idx}: New best program {program.id} replaces {old_id} "
+                    f"(combined_score: {old_score:.4f} → {new_score:.4f}, +{score_diff:.4f})"
+                )
+            else:
+                logger.debug(f"Island {island_idx}: New best program {program.id} replaces {old_id}")
 
     def _sample_parent(self) -> Program:
         """
@@ -853,96 +970,132 @@ class ProgramDatabase:
 
     def _sample_inspirations(self, parent: Program, n: int = 5) -> List[Program]:
         """
-        Sample inspiration programs for the next evolution step
+        Sample inspiration programs for the next evolution step.
+        
+        For proper island-based evolution, inspirations are sampled ONLY from the
+        current island, maintaining genetic isolation between islands.
 
         Args:
             parent: Parent program
             n: Number of inspirations to sample
 
         Returns:
-            List of inspiration programs
+            List of inspiration programs from the current island
         """
         inspirations = []
+        
+        # Get the parent's island (should be current_island)
+        parent_island = parent.metadata.get("island", self.current_island)
+        
+        # Get all programs from the current island
+        island_program_ids = list(self.islands[parent_island])
+        island_programs = [self.programs[pid] for pid in island_program_ids if pid in self.programs]
+        
+        if not island_programs:
+            logger.warning(f"Island {parent_island} has no programs for inspiration sampling")
+            return []
 
-        # Always include the absolute best program if available and different from parent
+        # Include the island's best program if available and different from parent
+        island_best_id = self.island_best_programs[parent_island]
         if (
-            self.best_program_id is not None
-            and self.best_program_id != parent.id
-            and self.best_program_id in self.programs
+            island_best_id is not None
+            and island_best_id != parent.id
+            and island_best_id in self.programs
         ):
-            best_program = self.programs[self.best_program_id]
-            inspirations.append(best_program)
-            logger.debug(f"Including best program {self.best_program_id} in inspirations")
-        elif self.best_program_id is not None and self.best_program_id not in self.programs:
-            # Clean up stale best program reference
+            island_best = self.programs[island_best_id]
+            inspirations.append(island_best)
+            logger.debug(f"Including island {parent_island} best program {island_best_id} in inspirations")
+        elif island_best_id is not None and island_best_id not in self.programs:
+            # Clean up stale island best reference
             logger.warning(
-                f"Best program {self.best_program_id} no longer exists, clearing reference"
+                f"Island {parent_island} best program {island_best_id} no longer exists, clearing reference"
             )
-            self.best_program_id = None
+            self.island_best_programs[parent_island] = None
 
-        # Add top programs as inspirations
+        # Add top programs from the island as inspirations
         top_n = max(1, int(n * self.config.elite_selection_ratio))
-        top_programs = self.get_top_programs(n=top_n)
-        for program in top_programs:
+        top_island_programs = self.get_top_programs(n=top_n, island_idx=parent_island)
+        for program in top_island_programs:
             if program.id not in [p.id for p in inspirations] and program.id != parent.id:
                 inspirations.append(program)
 
-        # Add diverse programs using config.num_diverse_programs
-        if len(self.programs) > n and len(inspirations) < n:
-            # Calculate how many diverse programs to add (up to remaining slots)
+        # Add diverse programs from within the island
+        if len(island_programs) > n and len(inspirations) < n:
             remaining_slots = n - len(inspirations)
 
-            # Sample from different feature cells for diversity
+            # Try to sample from different feature cells within the island
             feature_coords = self._calculate_feature_coords(parent)
-
-            # Get programs from nearby feature cells
             nearby_programs = []
-            for _ in range(remaining_slots):
+            
+            # Create a mapping of feature cells to island programs for efficient lookup
+            island_feature_map = {}
+            for prog_id in island_program_ids:
+                if prog_id in self.programs:
+                    prog = self.programs[prog_id]
+                    prog_coords = self._calculate_feature_coords(prog)
+                    cell_key = self._feature_coords_to_key(prog_coords)
+                    island_feature_map[cell_key] = prog_id
+            
+            # Try to find programs from nearby feature cells within the island
+            for _ in range(remaining_slots * 3):  # Try more times to find nearby programs
                 # Perturb coordinates
                 perturbed_coords = [
-                    max(0, min(self.feature_bins - 1, c + random.randint(-1, 1)))
+                    max(0, min(self.feature_bins - 1, c + random.randint(-2, 2)))
                     for c in feature_coords
                 ]
-
-                # Try to get program from this cell
+                
                 cell_key = self._feature_coords_to_key(perturbed_coords)
-                if cell_key in self.feature_map:
-                    program_id = self.feature_map[cell_key]
-                    # Check if program still exists before adding
+                if cell_key in island_feature_map:
+                    program_id = island_feature_map[cell_key]
                     if (
                         program_id != parent.id
                         and program_id not in [p.id for p in inspirations]
+                        and program_id not in [p.id for p in nearby_programs]
                         and program_id in self.programs
                     ):
                         nearby_programs.append(self.programs[program_id])
-                    elif program_id not in self.programs:
-                        # Clean up stale reference in feature_map
-                        logger.debug(f"Removing stale program {program_id} from feature_map")
-                        del self.feature_map[cell_key]
+                        if len(nearby_programs) >= remaining_slots:
+                            break
 
-            # If we need more, add random programs
+            # If we still need more, add random programs from the island
             if len(inspirations) + len(nearby_programs) < n:
                 remaining = n - len(inspirations) - len(nearby_programs)
-                all_ids = set(self.programs.keys())
+                
+                # Get available programs from the island
                 excluded_ids = (
                     {parent.id}
                     .union(p.id for p in inspirations)
                     .union(p.id for p in nearby_programs)
                 )
-                available_ids = list(all_ids - excluded_ids)
-
-                if available_ids:
-                    random_ids = random.sample(available_ids, min(remaining, len(available_ids)))
+                available_island_ids = [
+                    pid for pid in island_program_ids 
+                    if pid not in excluded_ids and pid in self.programs
+                ]
+                
+                if available_island_ids:
+                    random_ids = random.sample(
+                        available_island_ids, 
+                        min(remaining, len(available_island_ids))
+                    )
                     random_programs = [self.programs[pid] for pid in random_ids]
                     nearby_programs.extend(random_programs)
 
             inspirations.extend(nearby_programs)
 
+        # Log island isolation info
+        logger.debug(
+            f"Sampled {len(inspirations)} inspirations from island {parent_island} "
+            f"(island has {len(island_programs)} programs total)"
+        )
+
         return inspirations[:n]
 
-    def _enforce_population_limit(self) -> None:
+    def _enforce_population_limit(self, exclude_program_id: Optional[str] = None) -> None:
         """
         Enforce the population size limit by removing worst programs if needed
+
+        Args:
+            exclude_program_id: Program ID to never remove (e.g., newly added program)
         """
         if len(self.programs) <= self.config.population_size:
             return
@@ -963,22 +1116,24 @@ class ProgramDatabase:
             key=lambda p: safe_numeric_average(p.metrics),
         )
 
-        # Remove worst programs, but never remove the best program
+        # Remove worst programs, but never remove the best program or excluded program
         programs_to_remove = []
+        protected_ids = {self.best_program_id, exclude_program_id} - {None}
+
         for program in sorted_programs:
             if len(programs_to_remove) >= num_to_remove:
                 break
-            # Don't remove the best program
-            if program.id != self.best_program_id:
+            # Don't remove the best program or excluded program
+            if program.id not in protected_ids:
                 programs_to_remove.append(program)
 
-        # If we still need to remove more and only have the best program protected,
-        # remove from the remaining programs anyway (but keep the absolute best)
+        # If we still need to remove more and only have protected programs,
+        # remove from the remaining programs anyway (but keep the protected ones)
         if len(programs_to_remove) < num_to_remove:
             remaining_programs = [
                 p
                 for p in sorted_programs
-                if p not in programs_to_remove and p.id != self.best_program_id
+                if p not in programs_to_remove and p.id not in protected_ids
             ]
             additional_removals = remaining_programs[: num_to_remove - len(programs_to_remove)]
             programs_to_remove.extend(additional_removals)
@@ -1009,6 +1164,9 @@ class ProgramDatabase:
             logger.debug(f"Removed program {program_id} due to population limit")
 
         logger.info(f"Population size after cleanup: {len(self.programs)}")
+        
+        # Clean up any stale island best program references after removal
+        self._cleanup_stale_island_bests()
 
     # Island management methods
     def set_current_island(self, island_idx: int) -> None:
@@ -1082,14 +1240,106 @@ class ProgramDatabase:
                     # Add to target island
                     self.islands[target_island].add(migrant_copy.id)
                     self.programs[migrant_copy.id] = migrant_copy
+                    
+                    # Update island-specific best program if migrant is better
+                    self._update_island_best_program(migrant_copy, target_island)
 
-                    logger.debug(
-                        f"Migrated program {migrant.id} from island {i} to island {target_island}"
-                    )
+                    # Log migration with MAP-Elites coordinates
+                    feature_coords = self._calculate_feature_coords(migrant_copy)
+                    coords_dict = {self.config.feature_dimensions[j]: feature_coords[j] for j in range(len(feature_coords))}
+                    logger.info("Program migrated to island %d at MAP-Elites coords: %s", 
+                              target_island, coords_dict)
 
         # Update last migration generation
         self.last_migration_generation = max(self.island_generations)
         logger.info(f"Migration completed at generation {self.last_migration_generation}")
+        
+        # Validate migration results
+        self._validate_migration_results()
+
+    def _validate_migration_results(self) -> None:
+        """
+        Validate migration didn't create inconsistencies
+        
+        Checks that:
+        1. Program island metadata matches actual island assignment
+        2. No programs are assigned to multiple islands
+        3. All island best programs exist and are in correct islands
+        """
+        seen_program_ids = set()
+        
+        for i, island in enumerate(self.islands):
+            for program_id in island:
+                # Check for duplicate assignments
+                if program_id in seen_program_ids:
+                    logger.error(f"Program {program_id} assigned to multiple islands")
+                    continue
+                seen_program_ids.add(program_id)
+                
+                # Check program exists
+                if program_id not in self.programs:
+                    logger.warning(f"Island {i} contains nonexistent program {program_id}")
+                    continue
+                    
+                # Check metadata consistency
+                program = self.programs[program_id]
+                stored_island = program.metadata.get("island")
+                if stored_island != i:
+                    logger.warning(
+                        f"Island mismatch for program {program_id}: "
+                        f"in island {i} but metadata says {stored_island}"
+                    )
+        
+        # Validate island best programs
+        for i, best_id in enumerate(self.island_best_programs):
+            if best_id is not None:
+                if best_id not in self.programs:
+                    logger.warning(f"Island {i} best program {best_id} does not exist")
+                elif best_id not in self.islands[i]:
+                    logger.warning(f"Island {i} best program {best_id} not in island")
+
+    def _cleanup_stale_island_bests(self) -> None:
+        """
+        Remove stale island best program references
+        
+        Cleans up references to programs that no longer exist in the database
+        or are not actually in their assigned islands.
+        """
+        cleaned_count = 0
+        
+        for i, best_id in enumerate(self.island_best_programs):
+            if best_id is not None:
+                should_clear = False
+                
+                # Check if program still exists
+                if best_id not in self.programs:
+                    logger.debug(f"Clearing stale island {i} best program {best_id} (program deleted)")
+                    should_clear = True
+                # Check if program is still in the island
+                elif best_id not in self.islands[i]:
+                    logger.debug(f"Clearing stale island {i} best program {best_id} (not in island)")
+                    should_clear = True
+                
+                if should_clear:
+                    self.island_best_programs[i] = None
+                    cleaned_count += 1
+        
+        if cleaned_count > 0:
+            logger.info(f"Cleaned up {cleaned_count} stale island best program references")
+            
+            # Recalculate best programs for islands that were cleared
+            for i, best_id in enumerate(self.island_best_programs):
+                if best_id is None and len(self.islands[i]) > 0:
+                    # Find new best program for this island
+                    island_programs = [self.programs[pid] for pid in self.islands[i] if pid in self.programs]
+                    if island_programs:
+                        # Sort by fitness and update
+                        best_program = max(
+                            island_programs,
+                            key=lambda p: p.metrics.get("combined_score", safe_numeric_average(p.metrics))
+                        )
+                        self.island_best_programs[i] = best_program.id
+                        logger.debug(f"Recalculated island {i} best program: {best_program.id}")
 
     def get_island_stats(self) -> List[dict]:
         """Get statistics for each island"""
@@ -1193,10 +1443,13 @@ class ProgramDatabase:
         logger.info("Island Status:")
         for stat in stats:
             current_marker = " *" if stat["is_current"] else "  "
+            island_idx = stat['island']
+            island_best_id = self.island_best_programs[island_idx] if island_idx < len(self.island_best_programs) else None
+            best_indicator = f" (best: {island_best_id})" if island_best_id else ""
             logger.info(
                 f"{current_marker} Island {stat['island']}: {stat['population_size']} programs, "
                 f"best={stat['best_score']:.4f}, avg={stat['average_score']:.4f}, "
-                f"diversity={stat['diversity']:.2f}, gen={stat['generation']}"
+                f"diversity={stat['diversity']:.2f}, gen={stat['generation']}{best_indicator}"
             )
 
     # Artifact storage and retrieval methods

@@ -8,7 +8,7 @@ import os
 from unittest.mock import patch, MagicMock
 from openevolve.config import Config
 from openevolve.evaluator import Evaluator
-from openevolve.database import EvaluationResult
+from openevolve.evaluation_result import EvaluationResult
 
 
 class TestCascadeValidation(unittest.TestCase):
@@ -134,7 +134,7 @@ def evaluate(program_path):
         """Test that _direct_evaluate supports EvaluationResult returns"""
         # Create evaluator that returns EvaluationResult
         evaluator_content = '''
-from openevolve.database import EvaluationResult
+from openevolve.evaluation_result import EvaluationResult
 
 def evaluate(program_path):
     return EvaluationResult(

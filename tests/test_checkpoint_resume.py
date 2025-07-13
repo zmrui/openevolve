@@ -6,7 +6,7 @@ import asyncio
 import os
 import tempfile
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import json
 import time
 
@@ -96,10 +96,16 @@ def evaluate(program_path):
                 self.assertEqual(len(controller.database.programs), 0)
                 self.assertEqual(controller.database.last_iteration, 0)
 
-                # Mock the LLM to avoid actual API calls
-                with patch.object(controller.llm_ensemble, "generate_with_context") as mock_llm:
-                    mock_llm.return_value = "No changes needed"
-
+                # Mock the parallel controller to avoid API calls
+                with patch("openevolve.controller.ImprovedParallelController") as mock_controller_class:
+                    mock_controller = Mock()
+                    mock_controller.run_evolution = AsyncMock(return_value=None)
+                    mock_controller.start = Mock(return_value=None)
+                    mock_controller.stop = Mock(return_value=None)
+                    mock_controller.shutdown_flag = Mock()
+                    mock_controller.shutdown_flag.is_set.return_value = False
+                    mock_controller_class.return_value = mock_controller
+                    
                     # Run for 0 iterations (just initialization)
                     result = await controller.run(iterations=0)
 
@@ -144,10 +150,16 @@ def evaluate(program_path):
 
                 controller.database.add(existing_program)
 
-                # Mock the LLM to avoid actual API calls
-                with patch.object(controller.llm_ensemble, "generate_with_context") as mock_llm:
-                    mock_llm.return_value = "No changes needed"
-
+                # Mock the parallel controller to avoid API calls
+                with patch("openevolve.controller.ImprovedParallelController") as mock_controller_class:
+                    mock_controller = Mock()
+                    mock_controller.run_evolution = AsyncMock(return_value=None)
+                    mock_controller.start = Mock(return_value=None)
+                    mock_controller.stop = Mock(return_value=None)
+                    mock_controller.shutdown_flag = Mock()
+                    mock_controller.shutdown_flag.is_set.return_value = False
+                    mock_controller_class.return_value = mock_controller
+                    
                     # Run for 0 iterations (just initialization)
                     result = await controller.run(iterations=0)
 
@@ -191,10 +203,16 @@ def evaluate(program_path):
                 self.assertEqual(len(controller.database.programs), 1)
                 self.assertEqual(controller.database.last_iteration, 10)
 
-                # Mock the LLM to avoid actual API calls
-                with patch.object(controller.llm_ensemble, "generate_with_context") as mock_llm:
-                    mock_llm.return_value = "No changes needed"
-
+                # Mock the parallel controller to avoid API calls
+                with patch("openevolve.controller.ImprovedParallelController") as mock_controller_class:
+                    mock_controller = Mock()
+                    mock_controller.run_evolution = AsyncMock(return_value=None)
+                    mock_controller.start = Mock(return_value=None)
+                    mock_controller.stop = Mock(return_value=None)
+                    mock_controller.shutdown_flag = Mock()
+                    mock_controller.shutdown_flag.is_set.return_value = False
+                    mock_controller_class.return_value = mock_controller
+                    
                     # Run for 0 iterations (just initialization)
                     result = await controller.run(iterations=0)
 
@@ -241,10 +259,16 @@ def evaluate(program_path):
                 self.assertEqual(len(controller.database.programs), 1)
                 self.assertEqual(controller.database.last_iteration, 0)
 
-                # Mock the LLM to avoid actual API calls
-                with patch.object(controller.llm_ensemble, "generate_with_context") as mock_llm:
-                    mock_llm.return_value = "No changes needed"
-
+                # Mock the parallel controller to avoid API calls
+                with patch("openevolve.controller.ImprovedParallelController") as mock_controller_class:
+                    mock_controller = Mock()
+                    mock_controller.run_evolution = AsyncMock(return_value=None)
+                    mock_controller.start = Mock(return_value=None)
+                    mock_controller.stop = Mock(return_value=None)
+                    mock_controller.shutdown_flag = Mock()
+                    mock_controller.shutdown_flag.is_set.return_value = False
+                    mock_controller_class.return_value = mock_controller
+                    
                     # Run for 0 iterations (just initialization)
                     result = await controller.run(iterations=0)
 
@@ -275,9 +299,9 @@ def evaluate(program_path):
                     output_dir=self.test_dir,
                 )
 
-                # Mock the LLM to avoid actual API calls
-                with patch.object(controller.llm_ensemble, "generate_with_context") as mock_llm:
-                    mock_llm.return_value = "No changes needed"
+                # Mock the parallel controller to avoid API calls
+                with patch.object(controller, "parallel_controller") as mock_parallel:
+                    mock_parallel.run_evolution = AsyncMock(return_value=None)
 
                     # Run first time
                     result1 = await controller.run(iterations=0)

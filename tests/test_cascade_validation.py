@@ -8,10 +8,10 @@ import os
 from unittest.mock import patch, MagicMock
 from openevolve.config import Config
 from openevolve.evaluator import Evaluator
-from openevolve.database import EvaluationResult
+from openevolve.evaluation_result import EvaluationResult
 
 
-class TestCascadeValidation(unittest.TestCase):
+class TestCascadeValidation(unittest.IsolatedAsyncioTestCase):
     """Tests for cascade evaluation configuration validation"""
 
     def setUp(self):
@@ -23,10 +23,9 @@ class TestCascadeValidation(unittest.TestCase):
         
     def tearDown(self):
         """Clean up temporary files"""
-        # Clean up temp files
-        for file in os.listdir(self.temp_dir):
-            os.remove(os.path.join(self.temp_dir, file))
-        os.rmdir(self.temp_dir)
+        # Clean up temp files more safely
+        import shutil
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def _create_evaluator_file(self, filename: str, content: str) -> str:
         """Helper to create temporary evaluator file"""
@@ -59,7 +58,7 @@ def evaluate(program_path):
         
         # Should not raise warnings for valid cascade evaluator
         with patch('openevolve.evaluator.logger') as mock_logger:
-            evaluator = Evaluator(self.config.evaluator, None)
+            evaluator = Evaluator(self.config.evaluator, evaluator_path)
             
             # Should not have called warning
             mock_logger.warning.assert_not_called()
@@ -79,7 +78,7 @@ def evaluate(program_path):
         
         # Should warn about missing cascade functions
         with patch('openevolve.evaluator.logger') as mock_logger:
-            evaluator = Evaluator(self.config.evaluator, None)
+            evaluator = Evaluator(self.config.evaluator, evaluator_path)
             
             # Should have warned about missing stage functions
             mock_logger.warning.assert_called()
@@ -103,12 +102,14 @@ def evaluate(program_path):
         self.config.evaluator.cascade_evaluation = True
         self.config.evaluator.evaluation_file = evaluator_path
         
-        # Should not warn since stage1 exists (minimum requirement)
+        # Should warn about missing additional stages
         with patch('openevolve.evaluator.logger') as mock_logger:
-            evaluator = Evaluator(self.config.evaluator, None)
+            evaluator = Evaluator(self.config.evaluator, evaluator_path)
             
-            # Should not warn since stage1 exists
-            mock_logger.warning.assert_not_called()
+            # Should warn about missing stage2/stage3
+            mock_logger.warning.assert_called_once()
+            warning_call = mock_logger.warning.call_args[0][0]
+            self.assertIn("defines 'evaluate_stage1' but no additional cascade stages", warning_call)
 
     def test_no_cascade_validation_when_disabled(self):
         """Test no validation when cascade evaluation is disabled"""
@@ -125,16 +126,16 @@ def evaluate(program_path):
         
         # Should not perform validation or warn
         with patch('openevolve.evaluator.logger') as mock_logger:
-            evaluator = Evaluator(self.config.evaluator, None)
+            evaluator = Evaluator(self.config.evaluator, evaluator_path)
             
             # Should not warn when cascade evaluation is disabled
             mock_logger.warning.assert_not_called()
 
-    def test_direct_evaluate_supports_evaluation_result(self):
+    async def test_direct_evaluate_supports_evaluation_result(self):
         """Test that _direct_evaluate supports EvaluationResult returns"""
         # Create evaluator that returns EvaluationResult
         evaluator_content = '''
-from openevolve.database import EvaluationResult
+from openevolve.evaluation_result import EvaluationResult
 
 def evaluate(program_path):
     return EvaluationResult(
@@ -148,27 +149,29 @@ def evaluate(program_path):
         self.config.evaluator.evaluation_file = evaluator_path
         self.config.evaluator.timeout = 10
         
-        evaluator = Evaluator(self.config.evaluator, None)
+        evaluator = Evaluator(self.config.evaluator, evaluator_path)
         
         # Create a dummy program file
         program_path = self._create_evaluator_file("test_program.py", "def test(): pass")
         
-        # Mock the evaluation process
-        with patch('openevolve.evaluator.run_external_evaluator') as mock_run:
-            mock_run.return_value = EvaluationResult(
+        # Mock the evaluation function
+        def mock_evaluate(path):
+            return EvaluationResult(
                 metrics={"score": 0.8, "accuracy": 0.9},
                 artifacts={"debug_info": "test data"}
             )
-            
-            # Should handle EvaluationResult without issues
-            result = evaluator._direct_evaluate(program_path)
-            
-            # Should return the EvaluationResult as-is
-            self.assertIsInstance(result, EvaluationResult)
-            self.assertEqual(result.metrics["score"], 0.8)
-            self.assertEqual(result.artifacts["debug_info"], "test data")
+        
+        evaluator.evaluate_function = mock_evaluate
+        
+        # Should handle EvaluationResult without issues
+        result = await evaluator._direct_evaluate(program_path)
+        
+        # Should return the EvaluationResult as-is
+        self.assertIsInstance(result, EvaluationResult)
+        self.assertEqual(result.metrics["score"], 0.8)
+        self.assertEqual(result.artifacts["debug_info"], "test data")
 
-    def test_direct_evaluate_supports_dict_result(self):
+    async def test_direct_evaluate_supports_dict_result(self):
         """Test that _direct_evaluate still supports dict returns"""
         # Create evaluator that returns dict
         evaluator_content = '''
@@ -181,30 +184,35 @@ def evaluate(program_path):
         self.config.evaluator.evaluation_file = evaluator_path
         self.config.evaluator.timeout = 10
         
-        evaluator = Evaluator(self.config.evaluator, None)
+        evaluator = Evaluator(self.config.evaluator, evaluator_path)
         
         # Create a dummy program file
         program_path = self._create_evaluator_file("test_program.py", "def test(): pass")
         
-        # Mock the evaluation process
-        with patch('openevolve.evaluator.run_external_evaluator') as mock_run:
-            mock_run.return_value = {"score": 0.7, "performance": 0.85}
-            
-            # Should handle dict result without issues
-            result = evaluator._direct_evaluate(program_path)
-            
-            # Should return the dict as-is
-            self.assertIsInstance(result, dict)
-            self.assertEqual(result["score"], 0.7)
-            self.assertEqual(result["performance"], 0.85)
+        # Mock the evaluation function directly
+        def mock_evaluate(path):
+            return {"score": 0.7, "performance": 0.85}
+        
+        evaluator.evaluate_function = mock_evaluate
+        
+        # Should handle dict result without issues
+        result = await evaluator._direct_evaluate(program_path)
+        
+        # Should return the dict as-is
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result["score"], 0.7)
+        self.assertEqual(result["performance"], 0.85)
 
     def test_cascade_validation_with_class_based_evaluator(self):
         """Test cascade validation with class-based evaluator"""
-        # Create class-based evaluator
+        # Create class-based evaluator with all stages
         evaluator_content = '''
 class Evaluator:
     def evaluate_stage1(self, program_path):
         return {"stage1_score": 0.5}
+    
+    def evaluate_stage2(self, program_path):
+        return {"stage2_score": 0.7}
     
     def evaluate(self, program_path):
         return {"score": 0.5}
@@ -213,6 +221,10 @@ class Evaluator:
 def evaluate_stage1(program_path):
     evaluator = Evaluator()
     return evaluator.evaluate_stage1(program_path)
+
+def evaluate_stage2(program_path):
+    evaluator = Evaluator()
+    return evaluator.evaluate_stage2(program_path)
 
 def evaluate(program_path):
     evaluator = Evaluator()
@@ -226,7 +238,7 @@ def evaluate(program_path):
         
         # Should not warn since module-level functions exist
         with patch('openevolve.evaluator.logger') as mock_logger:
-            evaluator = Evaluator(self.config.evaluator, None)
+            evaluator = Evaluator(self.config.evaluator, evaluator_path)
             
             mock_logger.warning.assert_not_called()
 
@@ -243,32 +255,34 @@ def evaluate_stage1(program_path)  # Missing colon
         self.config.evaluator.cascade_evaluation = True
         self.config.evaluator.evaluation_file = evaluator_path
         
-        # Should handle syntax error and still warn about cascade
-        with patch('openevolve.evaluator.logger') as mock_logger:
-            evaluator = Evaluator(self.config.evaluator, None)
-            
-            # Should have warned about missing functions (due to import failure)
-            mock_logger.warning.assert_called()
+        # Should raise an error due to syntax error
+        with self.assertRaises(Exception):  # Could be SyntaxError or other import error
+            evaluator = Evaluator(self.config.evaluator, evaluator_path)
 
     def test_cascade_validation_nonexistent_file(self):
         """Test cascade validation with nonexistent evaluator file"""
         # Configure with nonexistent file
+        nonexistent_path = "/nonexistent/path.py"
         self.config.evaluator.cascade_evaluation = True
-        self.config.evaluator.evaluation_file = "/nonexistent/path.py"
+        self.config.evaluator.evaluation_file = nonexistent_path
         
-        # Should handle missing file gracefully
-        with patch('openevolve.evaluator.logger') as mock_logger:
-            evaluator = Evaluator(self.config.evaluator, None)
-            
-            # Should have warned about missing functions (due to import failure)
-            mock_logger.warning.assert_called()
+        # Should raise ValueError for missing file
+        with self.assertRaises(ValueError) as context:
+            evaluator = Evaluator(self.config.evaluator, nonexistent_path)
+        
+        self.assertIn("not found", str(context.exception))
 
     def test_process_evaluation_result_with_artifacts(self):
         """Test that _process_evaluation_result handles artifacts correctly"""
-        evaluator_path = self._create_evaluator_file("dummy.py", "def evaluate(p): pass")
+        evaluator_content = '''
+def evaluate(program_path):
+    return {"score": 0.5}
+'''
+        evaluator_path = self._create_evaluator_file("dummy.py", evaluator_content)
         
+        self.config.evaluator.cascade_evaluation = False  # Disable cascade to avoid warnings
         self.config.evaluator.evaluation_file = evaluator_path
-        evaluator = Evaluator(self.config.evaluator, None)
+        evaluator = Evaluator(self.config.evaluator, evaluator_path)
         
         # Test with EvaluationResult containing artifacts
         eval_result = EvaluationResult(
@@ -276,25 +290,30 @@ def evaluate_stage1(program_path)  # Missing colon
             artifacts={"log": "test log", "data": [1, 2, 3]}
         )
         
-        metrics, artifacts = evaluator._process_evaluation_result(eval_result)
+        result = evaluator._process_evaluation_result(eval_result)
         
-        self.assertEqual(metrics, {"score": 0.9})
-        self.assertEqual(artifacts, {"log": "test log", "data": [1, 2, 3]})
+        self.assertEqual(result.metrics, {"score": 0.9})
+        self.assertEqual(result.artifacts, {"log": "test log", "data": [1, 2, 3]})
 
     def test_process_evaluation_result_with_dict(self):
         """Test that _process_evaluation_result handles dict results correctly"""
-        evaluator_path = self._create_evaluator_file("dummy.py", "def evaluate(p): pass")
+        evaluator_content = '''
+def evaluate(program_path):
+    return {"score": 0.5}
+'''
+        evaluator_path = self._create_evaluator_file("dummy.py", evaluator_content)
         
+        self.config.evaluator.cascade_evaluation = False  # Disable cascade to avoid warnings
         self.config.evaluator.evaluation_file = evaluator_path
-        evaluator = Evaluator(self.config.evaluator, None)
+        evaluator = Evaluator(self.config.evaluator, evaluator_path)
         
         # Test with dict result
         dict_result = {"score": 0.7, "accuracy": 0.8}
         
-        metrics, artifacts = evaluator._process_evaluation_result(dict_result)
+        result = evaluator._process_evaluation_result(dict_result)
         
-        self.assertEqual(metrics, {"score": 0.7, "accuracy": 0.8})
-        self.assertEqual(artifacts, {})
+        self.assertEqual(result.metrics, {"score": 0.7, "accuracy": 0.8})
+        self.assertEqual(result.artifacts, {})
 
 
 if __name__ == "__main__":

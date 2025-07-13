@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openevolve"
-version = "0.0.15"
+dynamic = ["version"]
 description = "Open-source implementation of AlphaEvolve"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -46,3 +46,6 @@ disallow_incomplete_defs = true
 
 [project.scripts]
 openevolve-run = "openevolve.cli:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "openevolve.__version__"}

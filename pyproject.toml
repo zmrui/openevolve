@@ -48,4 +48,4 @@ disallow_incomplete_defs = true
 openevolve-run = "openevolve.cli:main"
 
 [tool.setuptools.dynamic]
-version = {attr = "openevolve.__version__"}
+version = {attr = "openevolve._version.__version__"}

@@ -355,6 +355,10 @@ class ProgramDatabase:
         Returns:
             List of top programs
         """
+        # Validate island_idx parameter
+        if island_idx is not None and (island_idx < 0 or island_idx >= len(self.islands)):
+            raise IndexError(f"Island index {island_idx} is out of range (0-{len(self.islands)-1})")
+        
         if not self.programs:
             return []
 

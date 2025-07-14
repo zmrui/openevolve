@@ -639,18 +639,18 @@ class ProgramDatabase:
                 bin_idx = self._calculate_complexity_bin(complexity)
                 coords.append(bin_idx)
             elif dim == "diversity":
-                # Use average edit distance to other programs
-                if len(self.programs) < 5:
+                # Use average fast code diversity to other programs
+                if len(self.programs) < 2:
                     bin_idx = 0
                 else:
                     sample_programs = random.sample(
                         list(self.programs.values()), min(5, len(self.programs))
                     )
-                    avg_distance = sum(
-                        calculate_edit_distance(program.code, other.code)
+                    avg_diversity = sum(
+                        self._fast_code_diversity(program.code, other.code)
                         for other in sample_programs
                     ) / len(sample_programs)
-                    bin_idx = self._calculate_diversity_bin(avg_distance)
+                    bin_idx = self._calculate_diversity_bin(avg_diversity)
                 coords.append(bin_idx)
             elif dim == "score":
                 # Use average of numeric metrics
@@ -717,40 +717,57 @@ class ProgramDatabase:
         
         return bin_idx
 
-    def _calculate_diversity_bin(self, avg_distance: float) -> int:
+    def _calculate_diversity_bin(self, diversity: float) -> int:
         """
         Calculate the bin index for a given diversity value using adaptive binning.
         
         Args:
-            avg_distance: The average edit distance to other programs
+            diversity: The average fast code diversity to other programs
             
         Returns:
             Bin index in range [0, self.feature_bins - 1]
         """
+        def _fast_diversity(program, sample_programs):
+            """Calculate average fast diversity for a program against sample programs"""
+            avg_diversity = sum(
+                self._fast_code_diversity(program.code, other.code)
+                for other in sample_programs
+            ) / len(sample_programs)
+            return avg_diversity
+
         if len(self.programs) < 2:
             # Cold start: use fixed range binning
-            # Assume reasonable range of 0-10000 for edit distance
-            max_distance = 10000
-            min_distance = 0
+            # Assume reasonable range of 0-10000 for fast diversity
+            max_diversity = 10000
+            min_diversity = 0
         else:
-            # For diversity, we could calculate the actual range, but edit distance
-            # computation is expensive. Use a reasonable fixed range instead.
-            # Edit distances typically range from 0 to several thousand
-            max_distance = 5000
-            min_distance = 0
-        
-        # Normalize distance to [0, 1] range
-        if max_distance > min_distance:
-            normalized = (avg_distance - min_distance) / (max_distance - min_distance)
+            # Sample programs for calculating diversity range (limit to 5 for performance)
+            sample_programs = list(self.programs.values())
+            if len(sample_programs) > 5:
+                import random
+                sample_programs = random.sample(sample_programs, 5)
+            
+            # Adaptive binning: use actual range from existing programs
+            existing_diversities = [_fast_diversity(p, sample_programs) for p in self.programs.values()]
+            min_diversity = min(existing_diversities)
+            max_diversity = max(existing_diversities)
+
+            # Ensure range is not zero
+            if max_diversity == min_diversity:
+                max_diversity = min_diversity + 1
+
+        # Normalize diversity to [0, 1] range
+        if max_diversity > min_diversity:
+            normalized = (diversity - min_diversity) / (max_diversity - min_diversity)
         else:
             normalized = 0.0
-        
+
         # Clamp to [0, 1] range
         normalized = max(0.0, min(1.0, normalized))
-        
+
         # Convert to bin index
         bin_idx = int(normalized * self.feature_bins)
-        
+
         # Ensure bin index is within valid range
         bin_idx = max(0, min(self.feature_bins - 1, bin_idx))
         

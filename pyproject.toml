@@ -47,5 +47,8 @@ disallow_incomplete_defs = true
 [project.scripts]
 openevolve-run = "openevolve.cli:main"
 
+[tool.setuptools.packages.find]
+include = ["openevolve*"]
+
 [tool.setuptools.dynamic]
 version = {attr = "openevolve._version.__version__"}

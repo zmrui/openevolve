@@ -3,8 +3,8 @@
 # You can use this as a template for your own configuration
 
 # General settings
-max_iterations: 1000                  # Maximum number of evolution iterations
-checkpoint_interval: 50               # Save checkpoints every N iterations
+max_iterations: 100                  # Maximum number of evolution iterations
+checkpoint_interval: 10               # Save checkpoints every N iterations
 log_level: "INFO"                     # Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 log_dir: null                         # Custom directory for logs (default: output_dir/logs)
 random_seed: 42                       # Random seed for reproducibility (null = random, 42 = default)

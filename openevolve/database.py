@@ -636,23 +636,21 @@ class ProgramDatabase:
             if dim == "complexity":
                 # Use code length as complexity measure
                 complexity = len(program.code)
-                bin_idx = min(int(complexity / 1000 * self.feature_bins), self.feature_bins - 1)
+                bin_idx = self._calculate_complexity_bin(complexity)
                 coords.append(bin_idx)
             elif dim == "diversity":
-                # Use average edit distance to other programs
-                if len(self.programs) < 5:
+                # Use average fast code diversity to other programs
+                if len(self.programs) < 2:
                     bin_idx = 0
                 else:
                     sample_programs = random.sample(
                         list(self.programs.values()), min(5, len(self.programs))
                     )
-                    avg_distance = sum(
-                        calculate_edit_distance(program.code, other.code)
+                    avg_diversity = sum(
+                        self._fast_code_diversity(program.code, other.code)
                         for other in sample_programs
                     ) / len(sample_programs)
-                    bin_idx = min(
-                        int(avg_distance / 1000 * self.feature_bins), self.feature_bins - 1
-                    )
+                    bin_idx = self._calculate_diversity_bin(avg_diversity)
                 coords.append(bin_idx)
             elif dim == "score":
                 # Use average of numeric metrics
@@ -676,6 +674,104 @@ class ProgramDatabase:
             str({self.config.feature_dimensions[i]: coords[i] for i in range(len(coords))}),
         )
         return coords
+
+    def _calculate_complexity_bin(self, complexity: int) -> int:
+        """
+        Calculate the bin index for a given complexity value using adaptive binning.
+        
+        Args:
+            complexity: The complexity value (code length)
+            
+        Returns:
+            Bin index in range [0, self.feature_bins - 1]
+        """
+        if len(self.programs) < 2:
+            # Cold start: use fixed range binning
+            # Assume reasonable range of 0-10000 characters for code length
+            max_complexity = 10000
+            min_complexity = 0
+        else:
+            # Adaptive binning: use actual range from existing programs
+            existing_complexities = [len(p.code) for p in self.programs.values()]
+            min_complexity = min(existing_complexities)
+            max_complexity = max(existing_complexities)
+            
+            # Ensure range is not zero
+            if max_complexity == min_complexity:
+                max_complexity = min_complexity + 1
+        
+        # Normalize complexity to [0, 1] range
+        if max_complexity > min_complexity:
+            normalized = (complexity - min_complexity) / (max_complexity - min_complexity)
+        else:
+            normalized = 0.0
+        
+        # Clamp to [0, 1] range
+        normalized = max(0.0, min(1.0, normalized))
+        
+        # Convert to bin index
+        bin_idx = int(normalized * self.feature_bins)
+        
+        # Ensure bin index is within valid range
+        bin_idx = max(0, min(self.feature_bins - 1, bin_idx))
+        
+        return bin_idx
+
+    def _calculate_diversity_bin(self, diversity: float) -> int:
+        """
+        Calculate the bin index for a given diversity value using adaptive binning.
+        
+        Args:
+            diversity: The average fast code diversity to other programs
+            
+        Returns:
+            Bin index in range [0, self.feature_bins - 1]
+        """
+        def _fast_diversity(program, sample_programs):
+            """Calculate average fast diversity for a program against sample programs"""
+            avg_diversity = sum(
+                self._fast_code_diversity(program.code, other.code)
+                for other in sample_programs
+            ) / len(sample_programs)
+            return avg_diversity
+
+        if len(self.programs) < 2:
+            # Cold start: use fixed range binning
+            # Assume reasonable range of 0-10000 for fast diversity
+            max_diversity = 10000
+            min_diversity = 0
+        else:
+            # Sample programs for calculating diversity range (limit to 5 for performance)
+            sample_programs = list(self.programs.values())
+            if len(sample_programs) > 5:
+                import random
+                sample_programs = random.sample(sample_programs, 5)
+            
+            # Adaptive binning: use actual range from existing programs
+            existing_diversities = [_fast_diversity(p, sample_programs) for p in self.programs.values()]
+            min_diversity = min(existing_diversities)
+            max_diversity = max(existing_diversities)
+
+            # Ensure range is not zero
+            if max_diversity == min_diversity:
+                max_diversity = min_diversity + 1
+
+        # Normalize diversity to [0, 1] range
+        if max_diversity > min_diversity:
+            normalized = (diversity - min_diversity) / (max_diversity - min_diversity)
+        else:
+            normalized = 0.0
+
+        # Clamp to [0, 1] range
+        normalized = max(0.0, min(1.0, normalized))
+
+        # Convert to bin index
+        bin_idx = int(normalized * self.feature_bins)
+
+        # Ensure bin index is within valid range
+        bin_idx = max(0, min(self.feature_bins - 1, bin_idx))
+        
+        return bin_idx
 
     def _feature_coords_to_key(self, coords: List[int]) -> str:
         """

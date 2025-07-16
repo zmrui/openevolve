@@ -105,7 +105,8 @@ class ProgramDatabase:
 
         # Feature grid for MAP-Elites
         self.feature_map: Dict[str, str] = {}
-        self.feature_bins = config.feature_bins
+        self.feature_bins = max(config.feature_bins,
+                                int(pow(config.archive_size, 1 / len(config.feature_dimensions)) + 0.99))
 
         # Island populations
         self.islands: List[Set[str]] = [set() for _ in range(config.num_islands)]
@@ -210,6 +211,11 @@ class ProgramDatabase:
                     existing_fitness = safe_numeric_average(existing_program.metrics)
                     logger.info("MAP-Elites cell improved: %s (fitness: %.3f -> %.3f)", 
                                coords_dict, existing_fitness, new_fitness)
+                    
+                    # use MAP-Elites to manage archive
+                    if existing_program_id in self.archive:
+                        self.archive.discard(existing_program_id)
+                        self.archive.add(program.id)
             
             self.feature_map[feature_key] = program.id
 

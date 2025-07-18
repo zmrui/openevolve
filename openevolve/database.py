@@ -721,9 +721,12 @@ class ProgramDatabase:
                 bin_idx = max(0, min(num_bins - 1, bin_idx))
                 coords.append(bin_idx)
             else:
-                # Default to middle bin if feature not found
-                num_bins = self.feature_bins_per_dim.get(dim, self.feature_bins)
-                coords.append(num_bins // 2)
+                # Feature not found - this is an error
+                raise ValueError(
+                    f"Feature dimension '{dim}' specified in config but not found in program metrics. "
+                    f"Available metrics: {list(program.metrics.keys())}. "
+                    f"Either remove '{dim}' from feature_dimensions or ensure your evaluator returns it."
+                )
         # Only log coordinates at debug level for troubleshooting
         logger.debug(
             "MAP-Elites coords: %s",

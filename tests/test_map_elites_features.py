@@ -244,6 +244,30 @@ class TestMapElitesFeatures(unittest.TestCase):
             self.assertGreaterEqual(coord, 0)
             self.assertLess(coord, db.feature_bins)
 
+    def test_missing_feature_dimension_error(self):
+        """Test that missing feature dimensions raise appropriate errors"""
+        config = Config()
+        config.database.in_memory = True
+        config.database.feature_dimensions = ["complexity", "nonexistent_metric"]
+        db = ProgramDatabase(config.database)
+
+        # Add a program without the required metric
+        program = Program(
+            id="test_error",
+            code="def test(): pass",
+            language="python",
+            metrics={"score": 0.5},  # Missing 'nonexistent_metric'
+        )
+
+        # Should raise ValueError when calculating feature coordinates
+        with self.assertRaises(ValueError) as context:
+            db.add(program)
+
+        # Check error message
+        self.assertIn("nonexistent_metric", str(context.exception))
+        self.assertIn("not found in program metrics", str(context.exception))
+        self.assertIn("score", str(context.exception))  # Should show available metrics
+
 
 if __name__ == "__main__":
     unittest.main()

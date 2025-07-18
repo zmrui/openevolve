@@ -90,10 +90,32 @@ database:
   # Note: diversity_metric is fixed to "edit_distance" (feature_based not implemented)
 
   # Feature map dimensions for MAP-Elites
+  # Default if not specified: ["complexity", "diversity"]
+  # 
+  # Built-in features (always available, computed by OpenEvolve):
+  #   - "complexity": Code length
+  #   - "diversity": Code structure diversity
+  #
+  # You can mix built-in features with custom metrics from your evaluator:
   feature_dimensions:                 # Dimensions for MAP-Elites feature map
-    - "score"                         # Performance score
-    - "complexity"                    # Code complexity (length)
+    - "complexity"                    # Code length (built-in)
+    - "diversity"                     # Code diversity (built-in)
+  # Example with custom features:
+  # feature_dimensions:
+  #   - "performance"                 # Must be returned by your evaluator
+  #   - "correctness"                 # Must be returned by your evaluator
+  #   - "memory_efficiency"           # Must be returned by your evaluator
+  
+  # Number of bins per dimension
+  # Can be a single integer (same for all dimensions) or a dict
   feature_bins: 10                    # Number of bins per dimension
+  # Example of per-dimension configuration:
+  # feature_bins:
+  #   complexity: 10                  # 10 bins for complexity
+  #   diversity: 15                   # 15 bins for diversity
+  #   performance: 20                 # 20 bins for custom metric
+  
+  diversity_reference_size: 20        # Size of reference set for diversity calculation
 
 # Evaluator configuration
 evaluator:

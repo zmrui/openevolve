@@ -24,7 +24,7 @@ class TestIslandTracking(unittest.TestCase):
             code=f"def func_{program_id}(): return {score}",
             language="python",
             metrics={"score": score, "combined_score": score},
-            metadata={"island": island}
+            metadata={"island": island},
         )
         return program
 
@@ -39,10 +39,10 @@ class TestIslandTracking(unittest.TestCase):
         """Test that the first program added to an island becomes the best"""
         program = self._create_test_program("first", 0.5, 0)
         self.db.add(program, target_island=0)
-        
+
         # Should become the best program for island 0
         self.assertEqual(self.db.island_best_programs[0], "first")
-        
+
         # Other islands should still have None
         self.assertIsNone(self.db.island_best_programs[1])
         self.assertIsNone(self.db.island_best_programs[2])
@@ -53,7 +53,7 @@ class TestIslandTracking(unittest.TestCase):
         program1 = self._create_test_program("mediocre", 0.5, 0)
         self.db.add(program1, target_island=0)
         self.assertEqual(self.db.island_best_programs[0], "mediocre")
-        
+
         # Add better program
         program2 = self._create_test_program("better", 0.8, 0)
         self.db.add(program2, target_island=0)
@@ -65,11 +65,11 @@ class TestIslandTracking(unittest.TestCase):
         program1 = self._create_test_program("good", 0.8, 0)
         self.db.add(program1, target_island=0)
         self.assertEqual(self.db.island_best_programs[0], "good")
-        
+
         # Add worse program
         program2 = self._create_test_program("worse", 0.3, 0)
         self.db.add(program2, target_island=0)
-        
+
         # Should still be the good program
         self.assertEqual(self.db.island_best_programs[0], "good")
 
@@ -79,11 +79,11 @@ class TestIslandTracking(unittest.TestCase):
         program1 = self._create_test_program("island0_best", 0.9, 0)
         program2 = self._create_test_program("island1_best", 0.7, 1)
         program3 = self._create_test_program("island2_best", 0.5, 2)
-        
+
         self.db.add(program1, target_island=0)
         self.db.add(program2, target_island=1)
         self.db.add(program3, target_island=2)
-        
+
         # Each island should track its own best
         self.assertEqual(self.db.island_best_programs[0], "island0_best")
         self.assertEqual(self.db.island_best_programs[1], "island1_best")
@@ -94,10 +94,10 @@ class TestIslandTracking(unittest.TestCase):
         # Add program to island 0
         original = self._create_test_program("original", 0.6, 0)
         self.db.add(original, target_island=0)
-        
+
         # Island 1 starts empty
         self.assertIsNone(self.db.island_best_programs[1])
-        
+
         # Manually create a migrant to island 1 (simulating migration)
         migrant = Program(
             id="original_migrant_1",
@@ -106,12 +106,12 @@ class TestIslandTracking(unittest.TestCase):
             parent_id=original.id,
             generation=original.generation,
             metrics=original.metrics.copy(),
-            metadata={"island": 1, "migrant": True}
+            metadata={"island": 1, "migrant": True},
         )
-        
+
         # Add migrant to island 1
         self.db.add(migrant, target_island=1)
-        
+
         # Should become best for island 1
         self.assertEqual(self.db.island_best_programs[1], "original_migrant_1")
 
@@ -121,23 +121,23 @@ class TestIslandTracking(unittest.TestCase):
         program1 = self._create_test_program("prog1", 0.9, 0)
         program2 = self._create_test_program("prog2", 0.7, 0)
         program3 = self._create_test_program("prog3", 0.5, 0)
-        
+
         # Add programs to island 1
         program4 = self._create_test_program("prog4", 0.8, 1)
         program5 = self._create_test_program("prog5", 0.6, 1)
-        
+
         self.db.add(program1, target_island=0)
         self.db.add(program2, target_island=0)
         self.db.add(program3, target_island=0)
         self.db.add(program4, target_island=1)
         self.db.add(program5, target_island=1)
-        
+
         # Get top programs from island 0
         island0_top = self.db.get_top_programs(n=2, island_idx=0)
         self.assertEqual(len(island0_top), 2)
         self.assertEqual(island0_top[0].id, "prog1")  # Highest score
         self.assertEqual(island0_top[1].id, "prog2")  # Second highest
-        
+
         # Get top programs from island 1
         island1_top = self.db.get_top_programs(n=2, island_idx=1)
         self.assertEqual(len(island1_top), 2)
@@ -152,20 +152,20 @@ class TestIslandTracking(unittest.TestCase):
             code="def test1(): pass",
             language="python",
             metrics={"score": 0.5, "other": 0.3, "combined_score": 0.4},
-            metadata={"island": 0}
+            metadata={"island": 0},
         )
-        
+
         program2 = Program(
-            id="test2", 
+            id="test2",
             code="def test2(): pass",
             language="python",
             metrics={"score": 0.3, "other": 0.7, "combined_score": 0.5},
-            metadata={"island": 0}
+            metadata={"island": 0},
         )
-        
+
         self.db.add(program1, target_island=0)
         self.assertEqual(self.db.island_best_programs[0], "test1")
-        
+
         # program2 has higher combined_score, should become best
         self.db.add(program2, target_island=0)
         self.assertEqual(self.db.island_best_programs[0], "test2")
@@ -175,15 +175,15 @@ class TestIslandTracking(unittest.TestCase):
         program = self._create_test_program("to_remove", 0.8, 0)
         self.db.add(program, target_island=0)
         self.assertEqual(self.db.island_best_programs[0], "to_remove")
-        
+
         # Manually remove the program (simulating cleanup)
         del self.db.programs["to_remove"]
         self.db.islands[0].remove("to_remove")
-        
+
         # Add a new program - should detect stale reference and update
         new_program = self._create_test_program("new", 0.6, 0)
         self.db.add(new_program, target_island=0)
-        
+
         # Should update the best program (the old one is gone)
         self.assertEqual(self.db.island_best_programs[0], "new")
 
@@ -192,33 +192,35 @@ class TestIslandTracking(unittest.TestCase):
         # Add programs to island 0
         program1 = self._create_test_program("island0_prog1", 0.9, 0)
         program2 = self._create_test_program("island0_prog2", 0.7, 0)
-        
+
         # Add programs to island 1
         program3 = self._create_test_program("island1_prog1", 0.8, 1)
         program4 = self._create_test_program("island1_prog2", 0.6, 1)
-        
+
         self.db.add(program1, target_island=0)
         self.db.add(program2, target_island=0)
         self.db.add(program3, target_island=1)
         self.db.add(program4, target_island=1)
-        
+
         # Sample from island 0 program
         inspirations = self.db._sample_inspirations(program1, n=5)
-        
+
         # All inspirations should be from island 0
         for inspiration in inspirations:
             island = inspiration.metadata.get("island")
-            self.assertEqual(island, 0, f"Program {inspiration.id} should be from island 0, got {island}")
+            self.assertEqual(
+                island, 0, f"Program {inspiration.id} should be from island 0, got {island}"
+            )
 
     def test_island_status_logging(self):
         """Test island status logging functionality"""
         # Add programs to different islands
         program1 = self._create_test_program("p1", 0.9, 0)
         program2 = self._create_test_program("p2", 0.7, 1)
-        
+
         self.db.add(program1, target_island=0)
         self.db.add(program2, target_island=1)
-        
+
         # Should not crash when logging status
         try:
             self.db.log_island_status()
@@ -230,21 +232,21 @@ class TestIslandTracking(unittest.TestCase):
         # Add programs to islands
         program1 = self._create_test_program("best0", 0.9, 0)
         program2 = self._create_test_program("best1", 0.8, 1)
-        
+
         self.db.add(program1, target_island=0)
         self.db.add(program2, target_island=1)
-        
+
         # Verify initial state
         self.assertEqual(self.db.island_best_programs[0], "best0")
         self.assertEqual(self.db.island_best_programs[1], "best1")
-        
+
         # Add more programs that are not better
         program3 = self._create_test_program("worse0", 0.5, 0)
         program4 = self._create_test_program("worse1", 0.4, 1)
-        
+
         self.db.add(program3, target_island=0)
         self.db.add(program4, target_island=1)
-        
+
         # Best should remain unchanged
         self.assertEqual(self.db.island_best_programs[0], "best0")
         self.assertEqual(self.db.island_best_programs[1], "best1")

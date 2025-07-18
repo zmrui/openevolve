@@ -166,9 +166,10 @@ class DatabaseConfig:
     diversity_metric: str = "edit_distance"  # Options: "edit_distance", "feature_based"
 
     # Feature map dimensions for MAP-Elites
-    # feature_dimensions: List[str] = field(default_factory=lambda: ["score", "complexity"])
-    feature_dimensions: List[str] = field(default_factory=lambda: ["complexity"])
-    feature_bins: int = 10
+    # Default to complexity and diversity for better exploration
+    feature_dimensions: List[str] = field(default_factory=lambda: ["complexity", "diversity"])
+    feature_bins: Union[int, Dict[str, int]] = 10  # Can be int (all dims) or dict (per-dim)
+    diversity_reference_size: int = 20  # Size of reference set for diversity calculation
 
     # Migration parameters for island-based evolution
     migration_interval: int = 50  # Migrate every N generations

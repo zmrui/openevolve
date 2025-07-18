@@ -97,7 +97,9 @@ def evaluate(program_path):
                 self.assertEqual(controller.database.last_iteration, 0)
 
                 # Mock the parallel controller to avoid API calls
-                with patch("openevolve.controller.ImprovedParallelController") as mock_controller_class:
+                with patch(
+                    "openevolve.controller.ImprovedParallelController"
+                ) as mock_controller_class:
                     mock_controller = Mock()
                     mock_controller.run_evolution = AsyncMock(return_value=None)
                     mock_controller.start = Mock(return_value=None)
@@ -105,7 +107,7 @@ def evaluate(program_path):
                     mock_controller.shutdown_flag = Mock()
                     mock_controller.shutdown_flag.is_set.return_value = False
                     mock_controller_class.return_value = mock_controller
-                    
+
                     # Run for 0 iterations (just initialization)
                     result = await controller.run(iterations=0)
 
@@ -151,7 +153,9 @@ def evaluate(program_path):
                 controller.database.add(existing_program)
 
                 # Mock the parallel controller to avoid API calls
-                with patch("openevolve.controller.ImprovedParallelController") as mock_controller_class:
+                with patch(
+                    "openevolve.controller.ImprovedParallelController"
+                ) as mock_controller_class:
                     mock_controller = Mock()
                     mock_controller.run_evolution = AsyncMock(return_value=None)
                     mock_controller.start = Mock(return_value=None)
@@ -159,7 +163,7 @@ def evaluate(program_path):
                     mock_controller.shutdown_flag = Mock()
                     mock_controller.shutdown_flag.is_set.return_value = False
                     mock_controller_class.return_value = mock_controller
-                    
+
                     # Run for 0 iterations (just initialization)
                     result = await controller.run(iterations=0)
 
@@ -204,7 +208,9 @@ def evaluate(program_path):
                 self.assertEqual(controller.database.last_iteration, 10)
 
                 # Mock the parallel controller to avoid API calls
-                with patch("openevolve.controller.ImprovedParallelController") as mock_controller_class:
+                with patch(
+                    "openevolve.controller.ImprovedParallelController"
+                ) as mock_controller_class:
                     mock_controller = Mock()
                     mock_controller.run_evolution = AsyncMock(return_value=None)
                     mock_controller.start = Mock(return_value=None)
@@ -212,7 +218,7 @@ def evaluate(program_path):
                     mock_controller.shutdown_flag = Mock()
                     mock_controller.shutdown_flag.is_set.return_value = False
                     mock_controller_class.return_value = mock_controller
-                    
+
                     # Run for 0 iterations (just initialization)
                     result = await controller.run(iterations=0)
 
@@ -260,7 +266,9 @@ def evaluate(program_path):
                 self.assertEqual(controller.database.last_iteration, 0)
 
                 # Mock the parallel controller to avoid API calls
-                with patch("openevolve.controller.ImprovedParallelController") as mock_controller_class:
+                with patch(
+                    "openevolve.controller.ImprovedParallelController"
+                ) as mock_controller_class:
                     mock_controller = Mock()
                     mock_controller.run_evolution = AsyncMock(return_value=None)
                     mock_controller.start = Mock(return_value=None)
@@ -268,7 +276,7 @@ def evaluate(program_path):
                     mock_controller.shutdown_flag = Mock()
                     mock_controller.shutdown_flag.is_set.return_value = False
                     mock_controller_class.return_value = mock_controller
-                    
+
                     # Run for 0 iterations (just initialization)
                     result = await controller.run(iterations=0)
 

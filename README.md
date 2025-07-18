@@ -36,6 +36,7 @@ OpenEvolve implements a comprehensive evolutionary coding system with:
 - **Island-Based Evolution**: Multiple populations with periodic migration for diversity maintenance
 - **Inspiration vs Performance**: Sophisticated prompt engineering separating top performers from diverse inspirations
 - **Multi-Strategy Selection**: Elite, diverse, and exploratory program sampling strategies
+- **Adaptive Feature Dimensions**: Default features (complexity & diversity) with customizable multi-dimensional search spaces
 
 #### 📊 **Evaluation & Feedback Systems**
 - **Artifacts Side-Channel**: Capture build errors, profiling data, and execution feedback for LLM improvement
@@ -274,7 +275,7 @@ database:
   population_size: 500
   num_islands: 5  # Island-based evolution
   migration_interval: 20
-  feature_dimensions: ["score", "complexity"]  # Quality-diversity features
+  feature_dimensions: ["complexity", "diversity"]  # Default quality-diversity features
   
 evaluator:
   # Advanced evaluation features
@@ -293,7 +294,40 @@ Sample configuration files are available in the `configs/` directory:
 - `default_config.yaml`: Comprehensive configuration with all available options
 - `island_config_example.yaml`: Advanced island-based evolution setup
 
+### Feature Dimensions in MAP-Elites
+
+Feature dimensions control how programs are organized in the MAP-Elites quality-diversity grid:
+
+**Default Features**: If `feature_dimensions` is NOT specified in your config, OpenEvolve uses `["complexity", "diversity"]` as defaults.
+
+**Built-in Features** (always computed internally by OpenEvolve):
+- **complexity**: Code length (recommended default)
+- **diversity**: Code structure diversity compared to other programs (recommended default)
+
+Only `complexity` and `diversity` are used as defaults because they work well across all program types.
+
+**Custom Features**: You can mix built-in features with metrics from your evaluator:
+```yaml
+database:
+  feature_dimensions: ["complexity", "performance", "correctness"]  # Mix of built-in and custom
+  # Per-dimension bin configuration (optional)
+  feature_bins: 
+    complexity: 10        # 10 bins for complexity
+    performance: 20       # 20 bins for performance (from YOUR evaluator)
+    correctness: 15       # 15 bins for correctness (from YOUR evaluator)
+```
+
+**Important**: OpenEvolve will raise an error if a specified feature is not found in the evaluator's metrics. This ensures your configuration is correct. The error message will show available metrics to help you fix the configuration.
+
 See the [Configuration Guide](configs/default_config.yaml) for a full list of options.
+
+### Default Metric for Program Selection
+
+When comparing and selecting programs, OpenEvolve uses the following priority:
+1. **combined_score**: If your evaluator returns a `combined_score` metric, it will be used as the primary fitness measure
+2. **Average of all metrics**: If no `combined_score` is provided, OpenEvolve calculates the average of all numeric metrics returned by your evaluator
+
+This ensures programs can always be compared even without explicit fitness definitions. For best results, consider having your evaluator return a `combined_score` that represents overall program fitness.
 
 ## Artifacts Channel
 

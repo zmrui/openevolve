@@ -89,7 +89,7 @@ class Evaluator:
 
             self.evaluate_function = module.evaluate
             logger.info(f"Successfully loaded evaluation function from {self.evaluation_file}")
-            
+
             # Validate cascade configuration
             self._validate_cascade_configuration(module)
         except Exception as e:
@@ -99,16 +99,16 @@ class Evaluator:
     def _validate_cascade_configuration(self, module) -> None:
         """
         Validate cascade evaluation configuration and warn about potential issues
-        
+
         Args:
             module: The loaded evaluation module
         """
         if self.config.cascade_evaluation:
             # Check if cascade functions exist
             has_stage1 = hasattr(module, "evaluate_stage1")
-            has_stage2 = hasattr(module, "evaluate_stage2") 
+            has_stage2 = hasattr(module, "evaluate_stage2")
             has_stage3 = hasattr(module, "evaluate_stage3")
-            
+
             if not has_stage1:
                 logger.warning(
                     f"Configuration has 'cascade_evaluation: true' but evaluator "
@@ -123,7 +123,9 @@ class Evaluator:
                     f"multi-stage evaluation for better cascade benefits."
                 )
             else:
-                logger.debug(f"Cascade evaluation properly configured with available stage functions")
+                logger.debug(
+                    f"Cascade evaluation properly configured with available stage functions"
+                )
 
     async def evaluate_program(
         self,
@@ -305,7 +307,9 @@ class Evaluator:
         """
         return self._pending_artifacts.pop(program_id, None)
 
-    async def _direct_evaluate(self, program_path: str) -> Union[Dict[str, float], EvaluationResult]:
+    async def _direct_evaluate(
+        self, program_path: str
+    ) -> Union[Dict[str, float], EvaluationResult]:
         """
         Directly evaluate a program using the evaluation function with timeout
 
@@ -616,22 +620,23 @@ class Evaluator:
     def _create_cascade_error_context(self, stage: str, error: Exception) -> dict:
         """
         Create rich error context for cascade failures
-        
+
         Args:
             stage: The stage where the error occurred
             error: The exception that was raised
-            
+
         Returns:
             Dictionary with enhanced error context
         """
         import time
+
         return {
             "failure_stage": stage,
             "error_type": type(error).__name__,
             "error_message": str(error),
             "timestamp": time.time(),
             "cascade_config": self.config.cascade_evaluation,
-            "cascade_thresholds": getattr(self.config, 'cascade_thresholds', []),
+            "cascade_thresholds": getattr(self.config, "cascade_thresholds", []),
             "timeout_config": self.config.timeout,
             "evaluation_file": self.evaluation_file,
         }

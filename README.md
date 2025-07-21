@@ -56,7 +56,7 @@ OpenEvolve implements a comprehensive evolutionary coding system with:
 - **Error Recovery**: Robust checkpoint loading with automatic fix for common serialization issues
 
 #### 🚀 **Performance & Scalability**
-- **Threaded Parallelism**: High-throughput asynchronous evaluation pipeline
+- **Process-Based Parallelism**: True parallel execution bypassing Python's GIL for CPU-bound tasks
 - **Resource Management**: Memory limits, timeouts, and resource monitoring
 - **Efficient Storage**: Optimized database with artifact management and cleanup policies
 

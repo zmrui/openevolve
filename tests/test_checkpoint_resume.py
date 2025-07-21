@@ -98,14 +98,14 @@ def evaluate(program_path):
 
                 # Mock the parallel controller to avoid API calls
                 with patch(
-                    "openevolve.controller.ImprovedParallelController"
+                    "openevolve.controller.ProcessParallelController"
                 ) as mock_controller_class:
                     mock_controller = Mock()
                     mock_controller.run_evolution = AsyncMock(return_value=None)
                     mock_controller.start = Mock(return_value=None)
                     mock_controller.stop = Mock(return_value=None)
-                    mock_controller.shutdown_flag = Mock()
-                    mock_controller.shutdown_flag.is_set.return_value = False
+                    mock_controller.shutdown_event = Mock()
+                    mock_controller.shutdown_event.is_set.return_value = False
                     mock_controller_class.return_value = mock_controller
 
                     # Run for 0 iterations (just initialization)
@@ -154,14 +154,14 @@ def evaluate(program_path):
 
                 # Mock the parallel controller to avoid API calls
                 with patch(
-                    "openevolve.controller.ImprovedParallelController"
+                    "openevolve.controller.ProcessParallelController"
                 ) as mock_controller_class:
                     mock_controller = Mock()
                     mock_controller.run_evolution = AsyncMock(return_value=None)
                     mock_controller.start = Mock(return_value=None)
                     mock_controller.stop = Mock(return_value=None)
-                    mock_controller.shutdown_flag = Mock()
-                    mock_controller.shutdown_flag.is_set.return_value = False
+                    mock_controller.shutdown_event = Mock()
+                    mock_controller.shutdown_event.is_set.return_value = False
                     mock_controller_class.return_value = mock_controller
 
                     # Run for 0 iterations (just initialization)
@@ -209,14 +209,14 @@ def evaluate(program_path):
 
                 # Mock the parallel controller to avoid API calls
                 with patch(
-                    "openevolve.controller.ImprovedParallelController"
+                    "openevolve.controller.ProcessParallelController"
                 ) as mock_controller_class:
                     mock_controller = Mock()
                     mock_controller.run_evolution = AsyncMock(return_value=None)
                     mock_controller.start = Mock(return_value=None)
                     mock_controller.stop = Mock(return_value=None)
-                    mock_controller.shutdown_flag = Mock()
-                    mock_controller.shutdown_flag.is_set.return_value = False
+                    mock_controller.shutdown_event = Mock()
+                    mock_controller.shutdown_event.is_set.return_value = False
                     mock_controller_class.return_value = mock_controller
 
                     # Run for 0 iterations (just initialization)
@@ -267,14 +267,14 @@ def evaluate(program_path):
 
                 # Mock the parallel controller to avoid API calls
                 with patch(
-                    "openevolve.controller.ImprovedParallelController"
+                    "openevolve.controller.ProcessParallelController"
                 ) as mock_controller_class:
                     mock_controller = Mock()
                     mock_controller.run_evolution = AsyncMock(return_value=None)
                     mock_controller.start = Mock(return_value=None)
                     mock_controller.stop = Mock(return_value=None)
-                    mock_controller.shutdown_flag = Mock()
-                    mock_controller.shutdown_flag.is_set.return_value = False
+                    mock_controller.shutdown_event = Mock()
+                    mock_controller.shutdown_event.is_set.return_value = False
                     mock_controller_class.return_value = mock_controller
 
                     # Run for 0 iterations (just initialization)

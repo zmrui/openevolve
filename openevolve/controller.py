@@ -16,7 +16,7 @@ from openevolve.database import Program, ProgramDatabase
 from openevolve.evaluator import Evaluator
 from openevolve.llm.ensemble import LLMEnsemble
 from openevolve.prompt.sampler import PromptSampler
-from openevolve.threaded_parallel import ImprovedParallelController
+from openevolve.process_parallel import ProcessParallelController
 from openevolve.utils.code_utils import (
     extract_code_language,
 )
@@ -257,7 +257,7 @@ class OpenEvolve:
 
         # Initialize improved parallel processing
         try:
-            self.parallel_controller = ImprovedParallelController(
+            self.parallel_controller = ProcessParallelController(
                 self.config, self.evaluation_file, self.database
             )
 
@@ -439,7 +439,7 @@ class OpenEvolve:
         )
 
         # Check if shutdown was requested
-        if self.parallel_controller.shutdown_flag.is_set():
+        if self.parallel_controller.shutdown_event.is_set():
             logger.info("Evolution stopped due to shutdown request")
             return
 

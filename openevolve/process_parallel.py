@@ -145,8 +145,9 @@ def _run_iteration_worker(
             reverse=True
         )
         
-        island_top_programs = island_programs[:5]
-        island_previous_programs = island_programs[:3]
+        # Use config values for limits instead of hardcoding
+        island_top_programs = island_programs[:_worker_config.prompt.num_top_programs + _worker_config.prompt.num_diverse_programs]
+        island_previous_programs = island_programs[:_worker_config.prompt.num_top_programs]
         
         # Build prompt
         prompt = _worker_prompt_sampler.build_prompt(

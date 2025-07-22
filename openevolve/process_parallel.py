@@ -472,7 +472,8 @@ class ProcessParallelController:
                         )
                     
                     # Checkpoint callback
-                    if completed_iteration % self.config.checkpoint_interval == 0:
+                    # Don't checkpoint at iteration 0 (that's just the initial program)
+                    if completed_iteration > 0 and completed_iteration % self.config.checkpoint_interval == 0:
                         logger.info(f"Checkpoint interval reached at iteration {completed_iteration}")
                         self.database.log_island_status()
                         if checkpoint_callback:

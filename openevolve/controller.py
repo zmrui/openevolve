@@ -280,9 +280,20 @@ class OpenEvolve:
 
             self.parallel_controller.start()
 
+            # When starting from iteration 0, we've already done the initial program evaluation
+            # So we need to adjust the start_iteration for the actual evolution
+            evolution_start = start_iteration
+            evolution_iterations = max_iterations
+            
+            # If we just added the initial program at iteration 0, start evolution from iteration 1
+            if should_add_initial and start_iteration == 0:
+                evolution_start = 1
+                # User expects max_iterations evolutionary iterations AFTER the initial program
+                # So we don't need to reduce evolution_iterations
+                
             # Run evolution with improved parallel processing and checkpoint callback
             await self._run_evolution_with_checkpoints(
-                start_iteration, max_iterations, target_score
+                evolution_start, evolution_iterations, target_score
             )
 
         finally:
@@ -444,6 +455,8 @@ class OpenEvolve:
             return
 
         # Save final checkpoint if needed
+        # Note: start_iteration here is the evolution start (1 for fresh start, not 0)
+        # max_iterations is the number of evolution iterations to run
         final_iteration = start_iteration + max_iterations - 1
         if final_iteration > 0 and final_iteration % self.config.checkpoint_interval == 0:
             self._save_checkpoint(final_iteration)

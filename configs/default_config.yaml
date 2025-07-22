@@ -63,6 +63,11 @@ prompt:
       - "I suggest the following improvements:"
       - "We can enhance this code by:"
 
+  # Artifact rendering
+  include_artifacts: true             # Include execution outputs/errors in prompt
+  max_artifact_bytes: 20480           # Maximum artifact size in bytes (20KB default)
+  artifact_security_filter: true      # Apply security filtering to artifacts
+
   # Note: meta-prompting features are not yet implemented
 
 # Database configuration

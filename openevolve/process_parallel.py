@@ -463,6 +463,21 @@ class ProcessParallelController:
                             for k, v in child_program.metrics.items()
                         ])
                         logger.info(f"Metrics: {metrics_str}")
+                        
+                        # Check if this is the first program without combined_score
+                        if not hasattr(self, '_warned_about_combined_score'):
+                            self._warned_about_combined_score = False
+                        
+                        if "combined_score" not in child_program.metrics and not self._warned_about_combined_score:
+                            from openevolve.utils.metrics_utils import safe_numeric_average
+                            avg_score = safe_numeric_average(child_program.metrics)
+                            logger.warning(
+                                f"⚠️  No 'combined_score' metric found in evaluation results. "
+                                f"Using average of all numeric metrics ({avg_score:.4f}) for evolution guidance. "
+                                f"For better evolution results, please modify your evaluator to return a 'combined_score' "
+                                f"metric that properly weights different aspects of program performance."
+                            )
+                            self._warned_about_combined_score = True
                     
                     # Check for new best
                     if self.database.best_program_id == child_program.id:

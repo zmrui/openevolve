@@ -249,6 +249,22 @@ class OpenEvolve:
             )
 
             self.database.add(initial_program)
+            
+            # Check if combined_score is present in the metrics
+            if "combined_score" not in initial_metrics:
+                # Calculate average of numeric metrics
+                numeric_metrics = [
+                    v for v in initial_metrics.values() 
+                    if isinstance(v, (int, float)) and not isinstance(v, bool)
+                ]
+                if numeric_metrics:
+                    avg_score = sum(numeric_metrics) / len(numeric_metrics)
+                    logger.warning(
+                        f"⚠️  No 'combined_score' metric found in evaluation results. "
+                        f"Using average of all numeric metrics ({avg_score:.4f}) for evolution guidance. "
+                        f"For better evolution results, please modify your evaluator to return a 'combined_score' "
+                        f"metric that properly weights different aspects of program performance."
+                    )
         else:
             logger.info(
                 f"Skipping initial program addition (resuming from iteration {start_iteration} "

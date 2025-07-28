@@ -142,6 +142,9 @@ class PromptConfig:
     max_artifact_bytes: int = 20 * 1024  # 20KB in prompt
     artifact_security_filter: bool = True
 
+    # Improvement areas
+    code_length_threshold: Optional[int] = 500
+
 
 @dataclass
 class DatabaseConfig:

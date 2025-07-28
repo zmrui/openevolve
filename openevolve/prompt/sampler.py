@@ -171,7 +171,7 @@ class PromptSampler:
         improvement_areas = []
 
         # Check program length
-        if len(current_program) > 500:
+        if self.config.code_length_threshold and len(current_program) > self.config.code_length_threshold:
             improvement_areas.append(
                 "Consider simplifying the code to improve readability and maintainability"
             )

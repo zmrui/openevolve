@@ -1,0 +1,9 @@
+Classify the following news article into one of four categories:
+0 - World News
+1 - Sports
+2 - Business
+3 - Science/Technology
+
+Article: "{input_text}"
+
+Category (respond with only the number 0-3):

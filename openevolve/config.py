@@ -142,6 +142,15 @@ class PromptConfig:
     max_artifact_bytes: int = 20 * 1024  # 20KB in prompt
     artifact_security_filter: bool = True
 
+    # Feature extraction and program labeling
+    suggest_simplification_after_chars: Optional[int] = 500  # Suggest simplifying if program exceeds this many characters
+    include_changes_under_chars: Optional[int] = 100  # Include change descriptions in features if under this length
+    concise_implementation_max_lines: Optional[int] = 10  # Label as "concise" if program has this many lines or fewer
+    comprehensive_implementation_min_lines: Optional[int] = 50  # Label as "comprehensive" if program has this many lines or more
+    
+    # Backward compatibility - deprecated
+    code_length_threshold: Optional[int] = None  # Deprecated: use suggest_simplification_after_chars
+
 
 @dataclass
 class DatabaseConfig:

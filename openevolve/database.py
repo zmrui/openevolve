@@ -1347,6 +1347,26 @@ class ProgramDatabase:
             target_islands = [(i + 1) % len(self.islands), (i - 1) % len(self.islands)]
 
             for migrant in migrants:
+                # Prevent re-migration of already migrated programs to avoid exponential duplication.
+                # Analysis of actual evolution runs shows this causes severe issues:
+                # - Program cb5d07f2 had 183 descendant copies by iteration 850
+                # - Program 5645fbd2 had 31 descendant copies
+                # - IDs grow exponentially: program_migrant_2_migrant_3_migrant_4_migrant_0...
+                #
+                # This is particularly problematic for OpenEvolve's MAP-Elites + Island hybrid architecture:
+                # 1. All copies have identical code → same complexity/diversity/performance scores
+                # 2. They all map to the SAME MAP-Elites cell → only 1 survives, rest discarded
+                # 3. Wastes computation evaluating hundreds of identical programs
+                # 4. Reduces actual diversity as islands fill with duplicates
+                #
+                # By preventing already-migrated programs from migrating again, we ensure:
+                # - Each program migrates at most once per lineage
+                # - True diversity is maintained between islands
+                # - Computational resources aren't wasted on duplicates
+                # - Aligns with MAP-Elites' one-program-per-cell principle
+                if migrant.metadata.get("migrant", False):
+                    continue
+
                 for target_island in target_islands:
                     # Create a copy for migration (to avoid removing from source)
                     migrant_copy = Program(

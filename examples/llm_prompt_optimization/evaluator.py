@@ -271,6 +271,7 @@ def evaluate_prompt(prompt, dataset, config, num_samples):
                         correct += 1
                 
                 total += 1
+                continue  # Skip the general case to avoid double counting
                 
             elif is_emotion:
                 # For emotion classification (0-5)

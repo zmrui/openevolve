@@ -36,18 +36,32 @@ MAX_RETRIES = evaluator_config.get('max_retries', 3)
 test_model = OpenAI(base_url=api_base)
 print(f"Initialized OpenAI client with model: {TASK_MODEL_NAME}")
 
+# Determine which dataset to use based on the OPENEVOLVE_PROMPT environment variable
+import sys
+prompt_file = os.environ.get('OPENEVOLVE_PROMPT')
+if not prompt_file:
+    # Default to a generic dataset config if not using the wrapper script
+    evaluator_dir = os.path.dirname(os.path.abspath(__file__))
+    DATASET_CONFIG_PATH = os.path.join(evaluator_dir, 'dataset_config.yaml')
+    print("Warning: OPENEVOLVE_PROMPT not set. Using default dataset_config.yaml")
+else:
+    basename = os.path.basename(prompt_file)
+    dataset_filename = basename.replace('_prompt.txt', '_prompt_dataset.yaml').replace('.txt', '_dataset.yaml')
+    evaluator_dir = os.path.dirname(os.path.abspath(__file__))
+    DATASET_CONFIG_PATH = os.path.join(evaluator_dir, dataset_filename)
+    print(f"Dataset configuration: {dataset_filename}")
+
 def load_prompt_config(prompt_path):
-    """Load the prompt from text file and dataset config from dataset.yaml."""
+    """Load the prompt from text file and dataset config from matching _dataset.yaml file."""
     # Load prompt from text file
     with open(prompt_path, 'r') as f:
         prompt = f.read().strip()
     
-    # Always load dataset configuration from the examples directory
-    # This ensures it works even when OpenEvolve copies files to temp directories
-    evaluator_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(evaluator_dir, 'dataset.yaml')
+    # Load the configuration (already determined from environment variable)
+    if not os.path.exists(DATASET_CONFIG_PATH):
+        raise FileNotFoundError(f"Dataset configuration not found: {DATASET_CONFIG_PATH}")
     
-    with open(config_path, 'r') as f:
+    with open(DATASET_CONFIG_PATH, 'r') as f:
         config = yaml.safe_load(f)
     
     return config, prompt
@@ -75,6 +89,9 @@ def evaluate_prompt(prompt, dataset, config, num_samples):
     input_field = config['input_field']
     target_field = config['target_field']
     
+    # Check if this is emotion classification (0-5) or sentiment (0-1)
+    is_emotion = 'emotion' in config.get('dataset_name', '').lower()
+    
     # Sample from dataset
     samples = dataset.select(range(min(num_samples, len(dataset))))
     
@@ -97,7 +114,7 @@ def evaluate_prompt(prompt, dataset, config, num_samples):
                     model=TASK_MODEL_NAME,
                     messages=messages,
                     temperature=0.1,  # Low temperature for consistent classification
-                    max_tokens=10  # We only need a short response
+                    max_tokens=20  # Allow slightly more tokens for emotion labels
                 )
                 break
             except Exception as e:
@@ -133,19 +150,41 @@ def evaluate_prompt(prompt, dataset, config, num_samples):
         
         # Extract prediction from output
         try:
-            # Look for a number (0 or 1) in the output
-            numbers = re.findall(r'\b[01]\b', output_text)
-            if numbers:
-                prediction = int(numbers[-1])  # Use the last number found
-            else:
-                # Try to infer from keywords
-                output_lower = output_text.lower()
-                if 'positive' in output_lower:
-                    prediction = 1
-                elif 'negative' in output_lower:
-                    prediction = 0
+            if is_emotion:
+                # For emotion classification (0-5)
+                numbers = re.findall(r'\b[0-5]\b', output_text)
+                if numbers:
+                    prediction = int(numbers[-1])  # Use the last number found
                 else:
-                    prediction = -1  # Invalid prediction
+                    # Try to infer from emotion keywords
+                    output_lower = output_text.lower()
+                    emotion_map = {
+                        'sadness': 0, 'sad': 0,
+                        'joy': 1, 'happy': 1, 'happiness': 1,
+                        'love': 2,
+                        'anger': 3, 'angry': 3,
+                        'fear': 4, 'afraid': 4, 'scared': 4,
+                        'surprise': 5, 'surprised': 5
+                    }
+                    prediction = -1
+                    for emotion, label in emotion_map.items():
+                        if emotion in output_lower:
+                            prediction = label
+                            break
+            else:
+                # For sentiment classification (0-1)
+                numbers = re.findall(r'\b[01]\b', output_text)
+                if numbers:
+                    prediction = int(numbers[-1])  # Use the last number found
+                else:
+                    # Try to infer from keywords
+                    output_lower = output_text.lower()
+                    if 'positive' in output_lower:
+                        prediction = 1
+                    elif 'negative' in output_lower:
+                        prediction = 0
+                    else:
+                        prediction = -1  # Invalid prediction
             
             if prediction == expected:
                 correct += 1

@@ -1,8 +1,0 @@
-# Emotion classification dataset configuration
-dataset_name: "dair-ai/emotion"
-input_field: "text"
-target_field: "label"  # 0: sadness, 1: joy, 2: love, 3: anger, 4: fear, 5: surprise
-split: "test"
-
-# Evaluation samples
-max_samples: 50

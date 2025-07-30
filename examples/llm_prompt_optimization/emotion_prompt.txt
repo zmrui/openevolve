@@ -1,0 +1,5 @@
+Classify the emotion expressed in the following text.
+
+Text: "{input_text}"
+
+Emotion (0-5):

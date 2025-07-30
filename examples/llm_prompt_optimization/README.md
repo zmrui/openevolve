@@ -10,7 +10,7 @@ OpenEvolve automatically:
 - Uses cascading evaluation for efficiency
 - Finds optimal prompts for your specific task and model
 
-The system uses a clean YAML format for configuration, making it easy to set up prompt optimization for any dataset.
+**Key Feature**: The evaluator automatically matches prompt files with dataset configurations using a naming convention (`xxx_prompt.txt` → `xxx_prompt_dataset.yaml`), making it easy to manage multiple benchmark tasks.
 
 ## 🚀 Quick Start
 
@@ -36,52 +36,74 @@ llm:
 
 ### 3. Set Up Your Dataset and Prompt
 
-Configure your dataset in `dataset.yaml`:
+This example uses a naming convention to match prompts with their dataset configurations:
+- For a prompt file `xxx_prompt.txt`, create a matching `xxx_prompt_dataset.yaml`
+- For example: `emotion_prompt.txt` uses `emotion_prompt_dataset.yaml`
+
+Create your dataset configuration file (e.g., `emotion_prompt_dataset.yaml`):
 
 ```yaml
 # HuggingFace dataset configuration
-dataset_name: "stanfordnlp/imdb"  # Any HuggingFace dataset
+dataset_name: "dair-ai/emotion"   # Any HuggingFace dataset
 input_field: "text"               # Field containing input data
 target_field: "label"             # Field containing ground truth
 split: "test"                     # Dataset split to use
 
 # Evaluation samples
-max_samples: 50    # Number of samples to evaluate
+max_samples: 200   # Number of samples to evaluate
 ```
 
-Create your initial prompt in `initial_prompt.txt`:
+Create your initial prompt file (e.g., `emotion_prompt.txt`):
 
 ```
-Your initial prompt here with {input_text} as placeholder
+Classify the emotion expressed in the following text.
+
+Text: "{input_text}"
+
+Emotion (0-5):
 ```
 
 ### 4. Run OpenEvolve
 
+Use the provided `run_evolution.sh` script to ensure the correct dataset is used:
+
 ```bash
-python ../../openevolve-run.py initial_prompt.txt evaluator.py --config config.yaml --iterations 100
+# For emotion classification benchmark
+./run_evolution.sh emotion_prompt.txt --iterations 50
+
+# For IMDB sentiment analysis
+./run_evolution.sh initial_prompt.txt --iterations 50
+
+# With custom iterations and checkpoint
+./run_evolution.sh emotion_prompt.txt --iterations 100 --checkpoint-interval 20
 ```
 
-The system will:
-- Evolve the prompt in `initial_prompt.txt`
-- Use dataset configuration from `dataset.yaml`
-- Test evolved prompts against the HuggingFace dataset
+The script automatically:
+- Sets the `OPENEVOLVE_PROMPT` environment variable so the evaluator knows which dataset to use
+- Passes all additional arguments to OpenEvolve
+- Ensures the correct `_dataset.yaml` file is matched with your prompt
+
+**Note**: If you prefer to run OpenEvolve directly, set the environment variable first:
+```bash
+export OPENEVOLVE_PROMPT=emotion_prompt.txt
+python ../../openevolve-run.py emotion_prompt.txt evaluator.py --config config.yaml --iterations 50
+```
 
 ## 📊 Supported Datasets
 
-This optimizer works with any HuggingFace dataset. Example configurations are provided in the `examples/` directory:
+This optimizer works with any HuggingFace dataset. Included examples:
 
-- **AG News**: `ag_news_dataset.yaml` + `ag_news_prompt.txt`
-- **Emotion**: `emotion_dataset.yaml` + `emotion_prompt.txt`
+- **IMDB Sentiment**: `initial_prompt.txt` + `initial_prompt_dataset.yaml` (binary classification)
+- **Emotion**: `emotion_prompt.txt` + `emotion_prompt_dataset.yaml` (6-class, benchmark against DSPy)
 
-To use an example:
-```bash
-# Copy the example files
-cp examples/ag_news_dataset.yaml dataset.yaml
-cp examples/ag_news_prompt.txt initial_prompt.txt
+### Creating New Tasks
 
-# Run optimization
-python ../../openevolve-run.py initial_prompt.txt evaluator.py --config config.yaml --iterations 100
-```
+To add a new dataset:
+1. Create `yourtask_prompt.txt` with the initial prompt
+2. Create `yourtask_prompt_dataset.yaml` with the dataset configuration
+3. Run: `./run_evolution.sh yourtask_prompt.txt --iterations 50`
+
+**Note**: If you call OpenEvolve directly without the wrapper script, the evaluator will look for a default `dataset_config.yaml` file.
 
 ### Common Dataset Configurations:
 

@@ -8,6 +8,7 @@ import logging
 import os
 import random
 import time
+import uuid
 from dataclasses import asdict, dataclass, field, fields
 
 # FileLock removed - no longer needed with threaded parallel processing
@@ -998,12 +999,29 @@ class ProgramDatabase:
         if not current_island_programs:
             # If current island is empty, initialize with best program or random program
             if self.best_program_id and self.best_program_id in self.programs:
-                # Clone best program to current island
+                # Create a copy of best program for the empty island (don't reuse same ID)
                 best_program = self.programs[self.best_program_id]
-                self.islands[self.current_island].add(self.best_program_id)
-                best_program.metadata["island"] = self.current_island
-                logger.debug(f"Initialized empty island {self.current_island} with best program")
-                return best_program
+                copy_program = Program(
+                    id=str(uuid.uuid4()),
+                    code=best_program.code,
+                    language=best_program.language,
+                    parent_id=best_program.id,
+                    generation=best_program.generation,
+                    timestamp=time.time(),
+                    iteration_found=self.last_iteration,
+                    metrics=best_program.metrics.copy(),
+                    complexity=best_program.complexity,
+                    diversity=best_program.diversity,
+                    metadata={"island": self.current_island},
+                    artifacts_json=best_program.artifacts_json,
+                    artifact_dir=best_program.artifact_dir,
+                )
+                self.programs[copy_program.id] = copy_program
+                self.islands[self.current_island].add(copy_program.id)
+                logger.debug(
+                    f"Initialized empty island {self.current_island} with copy of best program"
+                )
+                return copy_program
             else:
                 # Use any available program
                 return next(iter(self.programs.values()))
@@ -1026,10 +1044,29 @@ class ProgramDatabase:
                 f"Island {self.current_island} has no valid programs after cleanup, reinitializing"
             )
             if self.best_program_id and self.best_program_id in self.programs:
+                # Create a copy of best program for the empty island (don't reuse same ID)
                 best_program = self.programs[self.best_program_id]
-                self.islands[self.current_island].add(self.best_program_id)
-                best_program.metadata["island"] = self.current_island
-                return best_program
+                copy_program = Program(
+                    id=str(uuid.uuid4()),
+                    code=best_program.code,
+                    language=best_program.language,
+                    parent_id=best_program.id,
+                    generation=best_program.generation,
+                    timestamp=time.time(),
+                    iteration_found=self.last_iteration,
+                    metrics=best_program.metrics.copy(),
+                    complexity=best_program.complexity,
+                    diversity=best_program.diversity,
+                    metadata={"island": self.current_island},
+                    artifacts_json=best_program.artifacts_json,
+                    artifact_dir=best_program.artifact_dir,
+                )
+                self.programs[copy_program.id] = copy_program
+                self.islands[self.current_island].add(copy_program.id)
+                logger.debug(
+                    f"Reinitialized empty island {self.current_island} with copy of best program"
+                )
+                return copy_program
             else:
                 return next(iter(self.programs.values()))
 

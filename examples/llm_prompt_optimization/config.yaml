@@ -16,7 +16,7 @@ llm:
     - name: "gemini-2.5-flash-lite"  # Using Gemini 2.5 Flash Lite
       weight: 1.0
   
-  temperature: 0.4  # Optimal from experiments
+  temperature: 0.8  # Optimal from experiments
   max_tokens: 16000  # Optimal context
   timeout: 150
   retries: 3
@@ -53,8 +53,8 @@ database:
   
   # Selection parameters - Optimal ratios from testing
   elite_selection_ratio: 0.1   # 10% elite selection
-  exploration_ratio: 0.3       # 30% exploration
-  exploitation_ratio: 0.6      # 60% exploitation
+  exploration_ratio: 0.5       # 30% exploration
+  exploitation_ratio: 0.4      # 60% exploitation
   
   # Migration parameters - Optimal settings
   migration_interval: 10
@@ -62,8 +62,8 @@ database:
 
 # Evaluator Configuration
 evaluator:
-  timeout: 200
+  timeout: 600
   max_retries: 3
   parallel_evaluations: 4
   cascade_evaluation: true  # Two-stage cascading evaluation
-  cascade_thresholds: [0.9]  # Stage 1 must achieve 90% accuracy to proceed to stage 2
+  cascade_thresholds: [0.4]  # Stage 1 must achieve 90% accuracy to proceed to stage 2

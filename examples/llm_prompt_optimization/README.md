@@ -95,6 +95,7 @@ This optimizer works with any HuggingFace dataset. Included examples:
 
 - **IMDB Sentiment**: `initial_prompt.txt` + `initial_prompt_dataset.yaml` (binary classification)
 - **Emotion**: `emotion_prompt.txt` + `emotion_prompt_dataset.yaml` (6-class, benchmark against DSPy)
+- **GSM8K**: `gsm8k_prompt.txt` + `gsm8k_prompt_dataset.yaml` (grade school math, DSPy achieves 97.1%)
 
 ### Creating New Tasks
 

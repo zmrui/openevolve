@@ -69,17 +69,24 @@ def load_prompt_config(prompt_path):
 def load_hf_dataset(config):
     """Load HuggingFace dataset based on configuration."""
     dataset_name = config['dataset_name']
+    dataset_config = config.get('dataset_config', None)
     split = config.get('split', 'test')
     
     print(f"Loading dataset: {dataset_name}")
     
     try:
         # Try to load the specified split
-        dataset = load_dataset(dataset_name, split=split)
+        if dataset_config:
+            dataset = load_dataset(dataset_name, dataset_config, split=split)
+        else:
+            dataset = load_dataset(dataset_name, split=split)
     except:
         # Fallback to train split if test is not available
         print(f"Split '{split}' not found, falling back to 'train'")
-        dataset = load_dataset(dataset_name, split='train')
+        if dataset_config:
+            dataset = load_dataset(dataset_name, dataset_config, split='train')
+        else:
+            dataset = load_dataset(dataset_name, split='train')
     
     print(f"Dataset loaded with {len(dataset)} examples")
     return dataset
@@ -89,8 +96,10 @@ def evaluate_prompt(prompt, dataset, config, num_samples):
     input_field = config['input_field']
     target_field = config['target_field']
     
-    # Check if this is emotion classification (0-5) or sentiment (0-1)
-    is_emotion = 'emotion' in config.get('dataset_name', '').lower()
+    # Check dataset type
+    dataset_name = config.get('dataset_name', '').lower()
+    is_emotion = 'emotion' in dataset_name
+    is_gsm8k = 'gsm8k' in dataset_name
     
     # Sample from dataset
     samples = dataset.select(range(min(num_samples, len(dataset))))
@@ -110,11 +119,14 @@ def evaluate_prompt(prompt, dataset, config, num_samples):
         # Call the LLM with retry logic
         for attempt in range(MAX_RETRIES):
             try:
+                # Adjust max_tokens based on task
+                max_tokens = 500 if is_gsm8k else 20
+                
                 response = test_model.chat.completions.create(
                     model=TASK_MODEL_NAME,
                     messages=messages,
-                    temperature=0.1,  # Low temperature for consistent classification
-                    max_tokens=20  # Allow slightly more tokens for emotion labels
+                    temperature=0.1,  # Low temperature for consistent results
+                    max_tokens=max_tokens
                 )
                 break
             except Exception as e:
@@ -150,7 +162,41 @@ def evaluate_prompt(prompt, dataset, config, num_samples):
         
         # Extract prediction from output
         try:
-            if is_emotion:
+            if is_gsm8k:
+                # For GSM8K, extract the numeric answer after ####
+                # First, extract the expected answer from the ground truth
+                expected_answer = expected.split('####')[-1].strip()
+                try:
+                    expected_number = float(expected_answer.replace(',', ''))
+                except:
+                    print(f"Warning: Could not parse expected answer: {expected_answer}")
+                    total += 1
+                    continue
+                
+                # Extract prediction from model output
+                prediction = None
+                if '####' in output_text:
+                    predicted_answer = output_text.split('####')[-1].strip()
+                    # Extract just the number, removing any extra text like $ signs
+                    import re
+                    numbers = re.findall(r'-?\$?[\d,]+\.?\d*', predicted_answer)
+                    if numbers:
+                        try:
+                            # Remove $ and , from the number
+                            number_str = numbers[0].replace('$', '').replace(',', '')
+                            prediction = float(number_str)
+                        except:
+                            pass
+                
+                # If we found a prediction, check if it matches
+                if prediction is not None:
+                    # Check if answers match (with small tolerance for floats)
+                    if abs(prediction - expected_number) < 0.001:
+                        correct += 1
+                
+                total += 1
+                
+            elif is_emotion:
                 # For emotion classification (0-5)
                 numbers = re.findall(r'\b[0-5]\b', output_text)
                 if numbers:

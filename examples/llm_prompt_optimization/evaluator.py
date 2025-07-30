@@ -32,6 +32,10 @@ else:
 evaluator_config = config.get('evaluator', {})
 MAX_RETRIES = evaluator_config.get('max_retries', 3)
 
+# Get max_tokens from LLM config
+MAX_TOKENS = llm_config.get('max_tokens', 16000)
+print(f"Using max_tokens: {MAX_TOKENS}")
+
 # Initialize OpenAI client once for all evaluations
 test_model = OpenAI(base_url=api_base)
 print(f"Initialized OpenAI client with model: {TASK_MODEL_NAME}")
@@ -193,14 +197,12 @@ def evaluate_prompt(prompt, dataset, config, num_samples):
         # Call the LLM with retry logic
         for attempt in range(MAX_RETRIES):
             try:
-                # Adjust max_tokens based on task
-                max_tokens = 500 if is_gsm8k else 20
-                
+                # Use max_tokens from config
                 response = test_model.chat.completions.create(
                     model=TASK_MODEL_NAME,
                     messages=messages,
                     temperature=0.1,  # Low temperature for consistent results
-                    max_tokens=max_tokens
+                    max_tokens=MAX_TOKENS
                 )
                 break
             except Exception as e:

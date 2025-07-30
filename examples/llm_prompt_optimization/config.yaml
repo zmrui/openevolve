@@ -13,7 +13,7 @@ language: "text"  # Explicitly set language to text for prompt evolution
 llm:
   api_base: "https://generativelanguage.googleapis.com/v1beta/openai/"
   models:
-    - name: "gemini-2.5-flash-lite"  # Using Gemini 2.5 Flash Lite
+    - name: "gemini-2.5-flash"  # Using Gemini 2.5 Flash Lite
       weight: 1.0
   
   temperature: 0.4  # Optimal from experiments
@@ -67,8 +67,8 @@ database:
 
 # Evaluator Configuration
 evaluator:
-  timeout: 600
+  timeout: 1000
   max_retries: 3
   parallel_evaluations: 4
   cascade_evaluation: true  # Two-stage cascading evaluation
-  cascade_thresholds: [0.4]  # Stage 1 must achieve 90% accuracy to proceed to stage 2
+  cascade_thresholds: [0.8]  # Stage 1 must achieve 90% accuracy to proceed to stage 2

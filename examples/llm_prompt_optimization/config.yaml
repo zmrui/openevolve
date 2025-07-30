@@ -51,6 +51,11 @@ database:
   archive_size: 100
   num_islands: 4
   
+  # Feature dimensions for MAP-Elites
+  # Using custom features returned by the evaluator
+  feature_dimensions: ["prompt_length", "reasoning_strategy"]
+  feature_bins: 10  # 10x10 grid = 100 cells
+  
   # Selection parameters - Optimal ratios from testing
   elite_selection_ratio: 0.1   # 10% elite selection
   exploration_ratio: 0.3       # 30% exploration

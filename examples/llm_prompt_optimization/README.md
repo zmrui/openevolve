@@ -1,11 +1,11 @@
-# HuggingFace Dataset Prompt Optimization with OpenEvolve 🚀
+# LLM Prompt Optimization with OpenEvolve 🚀
 
-This example demonstrates how to use OpenEvolve to automatically optimize prompts for any HuggingFace dataset. The system uses evolutionary search to discover high-performing prompts by testing them against ground truth data.
+This example demonstrates how to use OpenEvolve to automatically optimize prompts for Large Language Models. The system uses evolutionary search to discover high-performing prompts by testing them against ground truth data from various datasets.
 
 ## 🎯 Overview
 
 OpenEvolve automatically:
-- Loads any HuggingFace dataset
+- Loads datasets from various sources
 - Evolves prompts through multiple generations
 - Uses cascading evaluation for efficiency
 - Finds optimal prompts for your specific task and model
@@ -43,8 +43,8 @@ This example uses a naming convention to match prompts with their dataset config
 Create your dataset configuration file (e.g., `emotion_prompt_dataset.yaml`):
 
 ```yaml
-# HuggingFace dataset configuration
-dataset_name: "dair-ai/emotion"   # Any HuggingFace dataset
+# Dataset configuration
+dataset_name: "dair-ai/emotion"   # Dataset identifier
 input_field: "text"               # Field containing input data
 target_field: "label"             # Field containing ground truth
 split: "test"                     # Dataset split to use
@@ -91,7 +91,7 @@ python ../../openevolve-run.py emotion_prompt.txt evaluator.py --config config.y
 
 ## 📊 Supported Datasets
 
-This optimizer works with any HuggingFace dataset. Included examples:
+This optimizer works with a wide variety of datasets. Included examples:
 
 - **IMDB Sentiment**: `initial_prompt.txt` + `initial_prompt_dataset.yaml` (binary classification)
 - **Emotion**: `emotion_prompt.txt` + `emotion_prompt_dataset.yaml` (6-class, benchmark against DSPy)
@@ -142,7 +142,7 @@ target_field: "summary"
 
 The evaluator uses a straightforward single-stage evaluation:
 
-1. **Load Dataset**: Downloads the specified HuggingFace dataset
+1. **Load Dataset**: Downloads the specified dataset
 2. **Sample Data**: Takes `max_samples` examples from the dataset
 3. **Test Prompt**: Sends each example through the LLM with the prompt
 4. **Calculate Accuracy**: Compares LLM outputs to ground truth labels
@@ -223,7 +223,7 @@ While the default setup is for classification, you can modify the evaluator for:
 ## 🐛 Troubleshooting
 
 ### Dataset Not Found
-- Check the exact name on HuggingFace
+- Check the exact dataset name and source
 - Some datasets require acceptance of terms
 
 ### Low Stage 1 Accuracy
@@ -246,7 +246,7 @@ While the default setup is for classification, you can modify the evaluator for:
 
 ## 📚 Next Steps
 
-- Try different datasets from HuggingFace
+- Try different datasets and benchmarks
 - Experiment with different models
 - Adjust evolution parameters in config.yaml
 - Create task-specific evaluation metrics

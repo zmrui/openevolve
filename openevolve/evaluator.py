@@ -644,6 +644,9 @@ class Evaluator:
     def _passes_threshold(self, metrics: Dict[str, float], threshold: float) -> bool:
         """
         Check if metrics pass a threshold
+        
+        Uses 'combined_score' if available (for consistency with evolution),
+        otherwise falls back to averaging all numeric metrics except 'error'
 
         Args:
             metrics: Dictionary of metric name to score
@@ -655,7 +658,14 @@ class Evaluator:
         if not metrics:
             return False
 
-        # Calculate average score, skipping non-numeric values and 'error' key
+        # Use combined_score if available - this is what evolution uses
+        if "combined_score" in metrics:
+            score = metrics.get("combined_score")
+            if isinstance(score, (int, float)):
+                return float(score) >= threshold
+
+        # Fallback: average all numeric metrics except 'error'
+        # This maintains backward compatibility
         valid_metrics = []
         for name, value in metrics.items():
             # Skip 'error' keys and ensure values are numeric

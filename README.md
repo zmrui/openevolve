@@ -288,11 +288,71 @@ prompt:
   num_top_programs: 3      # Performance examples
   num_diverse_programs: 2  # Creative inspiration
   include_artifacts: true  # Execution feedback
+  
+  # Template customization
+  template_dir: null               # Directory for custom prompt templates
+  use_template_stochasticity: true # Enable random variations in prompts
+  template_variations: {}          # Define variation placeholders
 ```
 
 Sample configuration files are available in the `configs/` directory:
 - `default_config.yaml`: Comprehensive configuration with all available options
 - `island_config_example.yaml`: Advanced island-based evolution setup
+
+### Template Customization
+
+OpenEvolve supports advanced prompt template customization to increase diversity in code evolution:
+
+#### Custom Templates with `template_dir`
+
+You can override the default prompt templates by providing custom ones:
+
+```yaml
+prompt:
+  template_dir: "path/to/your/templates"
+```
+
+Create `.txt` files in your template directory with these names:
+- `diff_user.txt` - Template for diff-based evolution
+- `full_rewrite_user.txt` - Template for full code rewrites  
+- `evolution_history.txt` - Format for presenting evolution history
+- `top_program.txt` - Format for top-performing programs
+- `previous_attempt.txt` - Format for previous attempts
+
+See these directories for complete examples of custom templates:
+- `examples/lm_eval/prompts/` - Custom templates for evaluation tasks
+- `examples/llm_prompt_optimization/templates/` - Templates for evolving prompts instead of code
+
+#### Template Variations with Stochasticity
+
+To add randomness to your prompts and prevent getting stuck in local optima:
+
+1. **Enable stochasticity** in your config:
+```yaml
+prompt:
+  use_template_stochasticity: true
+  template_variations:
+    greeting:
+      - "Let's improve this code."
+      - "Time to enhance this program."
+      - "Here's how we can optimize:"
+    analysis_intro:
+      - "Current metrics show"
+      - "Performance analysis indicates"
+      - "The evaluation reveals"
+```
+
+2. **Use variation placeholders** in your custom templates:
+```
+# custom_template.txt
+{greeting}
+{analysis_intro} the following results:
+{metrics}
+```
+
+The system will randomly select one variation for each placeholder during prompt generation, creating diverse prompts that can lead to more creative code evolutions.
+
+**Note**: The default templates don't include variation placeholders, so you'll need to create custom templates to use this feature effectively.
 
 ### Feature Dimensions in MAP-Elites
 
@@ -425,8 +485,12 @@ Demonstrates integration with [optillm](https://github.com/codelion/optillm) for
 - **Mixture of Agents (MoA)**: Multi-response synthesis for improved accuracy  
 - **Local model optimization**: Enhanced reasoning with smaller models
 
-#### [LLM Prompt Optimization](examples/llm_prompt_optimazation/)
-Evolving prompts themselves for better LLM performance, demonstrating self-improving AI systems.
+#### [LLM Prompt Optimization](examples/llm_prompt_optimization/)
+Evolving prompts for better LLM performance on HuggingFace datasets. Features:
+- Custom templates for evolving prompts instead of code
+- Two-stage cascading evaluation for efficiency
+- Support for any HuggingFace dataset
+- Automatic prompt improvement through evolution
 
 ### Systems & Performance Optimization
 

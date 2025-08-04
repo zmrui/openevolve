@@ -1,0 +1,46 @@
+# Configuration for svm task
+max_iterations: 100
+checkpoint_interval: 10
+log_level: "INFO"
+
+# LLM configuration
+llm:
+  primary_model: "gpt-4o-mini"
+  primary_model_weight: 0.8
+  secondary_model: "gpt-4o"
+  secondary_model_weight: 0.2
+  api_base: "https://api.openai.com/v1"
+  temperature: 0.7
+  top_p: 0.95
+  max_tokens: 4096
+
+# Prompt configuration
+prompt:
+  system_message: "You are an expert programmer specializing in convex_optimization algorithms. Your task is to improve the svm algorithm implementation. The problem description is: SVM Task\nGiven labels y ∈ {-1, 1}^n and a feature matrix X ∈ R^{n x p} with rows x_1,...,x_n, solve the support vector machine (SVM) task\n\nmin        1/2 || β ||_2^2 + C sum_{i=1}^n ξ_i\nβ,β_0,ξ  \n\nsubject to ξ_i ≥ 0, i = 1,...,n\n\t   y_i (x_i^T β + β_0) ≥ 1 - ξ_i, i = 1,...,n. Focus on improving the solve method to correctly handle the input format and produce valid solutions efficiently."
+  num_top_programs: 3
+  use_template_stochasticity: true
+
+# Database configuration
+database:
+  population_size: 50
+  archive_size: 20
+  num_islands: 3
+  elite_selection_ratio: 0.2
+  exploitation_ratio: 0.7
+
+# Evaluator configuration
+evaluator:
+  cascade_evaluation: true
+  cascade_thresholds: [0.5, 0.75]
+  parallel_evaluations: 4
+  use_llm_feedback: false
+
+# AlgoTune task-specific configuration
+algotune:
+  num_trials: 5
+  data_size: 5
+  timeout: 30
+
+# Evolution settings
+diff_based_evolution: true
+allow_full_rewrites: false

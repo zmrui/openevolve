@@ -38,7 +38,6 @@ class OpenAILLM(LLMInterface):
         self.client = openai.OpenAI(
             api_key=self.api_key,
             base_url=self.api_base,
-	    timeout=int(self.timeout)
         )
 
         # Only log unique models to reduce duplication
@@ -72,16 +71,6 @@ class OpenAILLM(LLMInterface):
                 "model": self.model,
                 "messages": formatted_messages,
                 "max_completion_tokens": kwargs.get("max_tokens", self.max_tokens),
-            }
-        elif self.api_base == "https://integrate.api.nvidia.com/v1":
-        # add the branch for NVbuild
-            params = {
-                "model": self.model,
-                "messages": formatted_messages,
-                "temperature": kwargs.get("temperature", self.temperature),
-                "top_p": kwargs.get("top_p", self.top_p),
-                "max_tokens": kwargs.get("max_tokens", self.max_tokens),
-                "stream": True
             }
         else:
             params = {
@@ -141,14 +130,4 @@ class OpenAILLM(LLMInterface):
         logger = logging.getLogger(__name__)
         logger.debug(f"API parameters: {params}")
         logger.debug(f"API response: {response.choices[0].message.content}")
-
-        if self.api_base == "https://integrate.api.nvidia.com/v1":
-            #print(f"{params['model']}")
-            output=""
-            for chunk in response:
-                if chunk.choices[0].delta.content is not None:
-                    output += chunk.choices[0].delta.content
-        else:
-            output=response.choices[0].message.content        
-
-        return output
+        return response.choices[0].message.content

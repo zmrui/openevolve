@@ -2,7 +2,7 @@
 """
 Task adapter for converting AlgoTune tasks to OpenEvolve format.
 
-This adapter extracts AlgoTune tasks and converts them to OpenEvolve format,
+This adapter extracts AlgoTune tasks from an external repository and converts them to OpenEvolve format,
 creating the necessary initial_program.py, evaluator.py, and config.yaml files.
 """
 
@@ -16,46 +16,60 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 import logging
 
-# Add AlgoTune to path for importing
-ALGOTUNE_PATH = Path(__file__).parent.parent.parent.parent / "AlgoTune"
-LOCAL_ALGOTUNE_PATH = Path(__file__).parent / "AlgoTuneTasks"
-LOCAL_ALGOTUNER_PATH = Path(__file__).parent / "AlgoTuner"
-
-# Try local paths first, then fallback to parent directory
-if LOCAL_ALGOTUNER_PATH.exists():
-    sys.path.insert(0, str(LOCAL_ALGOTUNER_PATH.parent))
-elif LOCAL_ALGOTUNE_PATH.exists():
-    sys.path.insert(0, str(LOCAL_ALGOTUNE_PATH.parent))
-else:
-    sys.path.insert(0, str(ALGOTUNE_PATH))
-
-try:
-    from AlgoTuneTasks.base import TASK_REGISTRY
-    from AlgoTuneTasks.registry import TASK_REGISTRY as REGISTRY_TASK_REGISTRY
-except ImportError as e:
-    print(f"Warning: Could not import AlgoTune tasks: {e}")
-    TASK_REGISTRY = {}
-    REGISTRY_TASK_REGISTRY = {}
-
-
 class AlgoTuneTaskAdapter:
     """Adapter to convert AlgoTune tasks to OpenEvolve format."""
     
-    def __init__(self, algotune_tasks_path: Optional[str] = None):
+    def __init__(self, algotune_path: Optional[str] = None, task: Optional[str] = None):
         """
         Initialize the adapter.
         
         Args:
-            algotune_tasks_path: Path to AlgoTune tasks directory
+            algotune_path: Path to AlgoTune repository directory (e.g., /path/to/AlgoTune)
+            task: Task name to create OpenEvolve files for
         """
-        if algotune_tasks_path is None:
-            algotune_tasks_path = Path(__file__).parent / "AlgoTuneTasks"
+        if algotune_path is None:
+            raise ValueError("Please specify algotune_path to the AlgoTune repository directory.")
         
-        self.algotune_tasks_path = Path(algotune_tasks_path)
+        self.algotune_path = Path(algotune_path)
+        self.algotune_tasks_path = self.algotune_path / "AlgoTuneTasks"
+        self.algotuner_path = self.algotune_path / "AlgoTuner"
         self.output_path = Path(__file__).parent
+        self.task = task
+        # Validate paths exist
+        if not self.algotune_tasks_path.exists():
+            raise ValueError(f"AlgoTuneTasks directory not found at: {self.algotune_tasks_path}")
+        if not self.algotuner_path.exists():
+            raise ValueError(f"AlgoTuner directory not found at: {self.algotuner_path}")
+        
+        # Add AlgoTune paths to Python path for importing
+        self._setup_import_paths()
         
         # Load all available tasks
         self._load_tasks()
+
+        if self.task is not None:
+            if self.task not in self.available_tasks:
+                raise ValueError(f"Task '{self.task}' not found. Available tasks: {list(self.available_tasks.keys())}")
+            self.task_info = self.available_tasks[self.task]
+            self.task_name = self.task  # Use the task name directly
+    
+    def _setup_import_paths(self):
+        """Setup Python import paths for AlgoTune modules."""
+        # Add AlgoTune base directory to path
+        if str(self.algotune_path) not in sys.path:
+            sys.path.insert(0, str(self.algotune_path))
+        
+        # Try to import AlgoTune modules
+        try:
+            from AlgoTuneTasks.base import TASK_REGISTRY
+            from AlgoTuneTasks.registry import TASK_REGISTRY as REGISTRY_TASK_REGISTRY
+            print(f"Successfully imported AlgoTune modules from {self.algotune_path}")
+        except ImportError as e:
+            print(f"Warning: Could not import AlgoTune tasks: {e}")
+            print(f"Make sure AlgoTune is properly installed and accessible")
+            print(f"AlgoTune path: {self.algotune_path}")
+            TASK_REGISTRY = {}
+            REGISTRY_TASK_REGISTRY = {}
     
     def _load_tasks(self):
         """Load all available AlgoTune tasks."""
@@ -74,6 +88,8 @@ class AlgoTuneTaskAdapter:
                         'description_file': description_file,
                         'task_file': task_file
                     }
+        
+        print(f"Loaded {len(self.available_tasks)} tasks from {self.algotune_tasks_path}")
     
     def get_task_description(self, task_name: str) -> str:
         """Get the description of a task."""
@@ -134,80 +150,82 @@ class AlgoTuneTaskAdapter:
         # Find the task class and extract the solve method
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef):
-                # Check if this class inherits from Task
+                # Check if this class inherits from Task or has the task name
+                is_task_class = False
                 if node.bases is not None:
                     for base in node.bases:
-                        if hasattr(base, 'id') and base.id is not None and 'Task' in base.id:
-                            class_info['name'] = node.name
-                            
-                            # Extract the entire class code
-                            class_info['class_code'] = ast.unparse(node)
-                            
-                            # Find the solve method using AST
-                            for item in node.body:
-                                if isinstance(item, ast.FunctionDef) and item.name == 'solve':
-                                    # Extract the method body using source code lines for better indentation control
-                                    try:
-                                        # Get the source lines for this method
-                                        method_start = item.lineno - 1  # Convert to 0-based index
-                                        method_end = item.end_lineno if hasattr(item, 'end_lineno') else method_start + 1
-                                        
-                                        # Extract the method source code
-                                        source_lines = task_code.split('\n')
-                                        method_source_lines = source_lines[method_start:method_end]
-                                        
-                                        # Find the indentation level of the method definition
-                                        def_line = method_source_lines[0]
-                                        def_indent = len(def_line) - len(def_line.lstrip())
-                                        
-                                        # Extract the method body with proper indentation
-                                        body_lines = []
-                                        
-                                        # Skip the first line (method definition) and process the rest
-                                        in_body = False
-                                        for line in method_source_lines[1:]:
+                        base_str = ast.unparse(base) if hasattr(ast, 'unparse') else str(base)
+                        if 'Task' in base_str:
+                            is_task_class = True
+                            break
+                
+                # Also check if the class name matches the task name (case-insensitive)
+                if not is_task_class and task_name.lower() in node.name.lower():
+                    is_task_class = True
+                
+                if is_task_class:
+                    class_info['name'] = node.name
+                    
+                    # Extract the entire class code
+                    class_info['class_code'] = ast.unparse(node)
+                    
+                    # Find the solve method using AST
+                    for item in node.body:
+                        if isinstance(item, ast.FunctionDef) and item.name == 'solve':
+                            try:
+                                # Get the source lines for this method
+                                method_start = item.lineno - 1  # Convert to 0-based index
+                                method_end = item.end_lineno if hasattr(item, 'end_lineno') else method_start + 1
+                                # Extract the method source code
+                                source_lines = task_code.split('\n')
+                                method_source_lines = source_lines[method_start:method_end]
+                                # Extract the method body with proper indentation
+                                body_lines = []
+                                def_indent = len(method_source_lines[0]) - len(method_source_lines[0].lstrip())
+                                signature_end = 0
+                                for i, line in enumerate(method_source_lines):
+                                    if ':' in line and line.strip().endswith(':'):
+                                        signature_end = i
+                                        break
+                                for line in method_source_lines[signature_end + 1:]:
+                                    if line.strip():
+                                        line_indent = len(line) - len(line.lstrip())
+                                        if line_indent > def_indent:
+                                            dedented_line = line[def_indent:]
+                                            body_lines.append('            ' + dedented_line)
+                                        elif line_indent == def_indent and line.strip().startswith('def '):
+                                            break
+                                        elif line_indent == def_indent:
+                                            break
+                                    else:
+                                        body_lines.append('')
+                                if body_lines:
+                                    min_indent = float('inf')
+                                    for line in body_lines:
+                                        if line.strip():
+                                            indent = len(line) - len(line.lstrip())
+                                            min_indent = min(min_indent, indent)
+                                    if min_indent != float('inf'):
+                                        fixed_lines = []
+                                        for line in body_lines:
                                             if line.strip():
-                                                # Calculate the relative indentation
-                                                line_indent = len(line) - len(line.lstrip())
-                                                
-                                                # Check if we're still in the method signature
-                                                if not in_body and line_indent > def_indent:
-                                                    # This is part of the method signature (parameters, return type, etc.)
-                                                    # Skip it and continue looking for the actual body
-                                                    continue
-                                                elif not in_body and line_indent == def_indent and ':' in line:
-                                                    # This is the end of the signature (the colon)
-                                                    in_body = True
-                                                    continue
-                                                elif not in_body:
-                                                    # Still in signature, skip
-                                                    continue
-                                                elif line_indent > def_indent:
-                                                    # This line is part of the method body
-                                                    # Remove the extra indentation and add exactly 12 spaces
-                                                    dedented_line = line[def_indent:]
-                                                    body_lines.append('            ' + dedented_line)
-                                                elif line_indent == def_indent and line.strip().startswith('def '):
-                                                    # We've reached another method definition, stop here
-                                                    break
-                                                elif line_indent == def_indent and in_body:
-                                                    # We've reached the end of the method body
-                                                    break
+                                                current_indent = len(line) - len(line.lstrip())
+                                                relative_indent = current_indent - min_indent
+                                                additional_spaces = relative_indent
+                                                new_indent = '            ' + (' ' * additional_spaces)
+                                                stripped = line.strip()
+                                                fixed_lines.append(new_indent + stripped)
                                             else:
-                                                # Empty line - keep it for proper formatting
-                                                if in_body:
-                                                    body_lines.append('')
-                                        
-                                        if body_lines:
-                                            class_info['solve_method'] = '\n'.join(body_lines)
-                                        else:
-                                            # Method has no body, create a placeholder
-                                            class_info['solve_method'] = '            # Placeholder for solve method\n            pass'
-                                    except Exception as e:
-                                        # Fallback: create a simple placeholder
-                                        class_info['solve_method'] = '            # Placeholder for solve method\n            pass'
-                                    break
-                        break
+                                                fixed_lines.append('')
+                                        body_lines = fixed_lines
+                                if body_lines:
+                                    class_info['solve_method'] = '\n'.join(body_lines)
+                                else:
+                                    class_info['solve_method'] = '            # Placeholder for solve method\n            pass'
+                            except Exception as e:
+                                class_info['solve_method'] = '            # Placeholder for solve method\n            pass'
+                            break
+                    break
         
         return class_info
     
@@ -346,13 +364,17 @@ if __name__ == "__main__":
         return initial_program
     
     def _generate_evaluator(self, task_name: str) -> str:
-        """Generate the evaluator for OpenEvolve using the actual task implementation."""
+        """Generate the evaluator for OpenEvolve using the actual task implementation with baseline comparison."""
         task_info = self.available_tasks[task_name]
         description = self.get_task_description(task_name)
         class_info = self._extract_task_class_info(task_name)
         
         evaluator = f'''"""
-Evaluator for the {task_name} task
+Evaluator for the {task_name} task with baseline comparison
+
+This evaluator compares OpenEvolve's evolved solutions against the reference
+AlgoTune baseline implementation to measure performance improvements.
+The speedup becomes the primary fitness score for evolution.
 """
 
 import importlib.util
@@ -364,26 +386,50 @@ import logging
 import sys
 import os
 from pathlib import Path
+from typing import Dict, Any, Optional, List, Tuple
 
 # Add AlgoTune to path for importing reference tasks
-LOCAL_ALGOTUNE_PATH = Path(__file__).parent.parent / "AlgoTuneTasks"
-LOCAL_ALGOTUNER_PATH = Path(__file__).parent.parent / "AlgoTuner"
+# These paths will be dynamically determined based on the AlgoTune installation
+# The adapter will handle path setup when the evaluator is created
 
-# Try local paths first, then fallback to parent directory
-if LOCAL_ALGOTUNER_PATH.exists():
-    sys.path.insert(0, str(LOCAL_ALGOTUNER_PATH.parent))
-elif LOCAL_ALGOTUNE_PATH.exists():
-    sys.path.insert(0, str(LOCAL_ALGOTUNE_PATH.parent))
+# Setup AlgoTune paths dynamically
+def setup_algotune_paths():
+    """Setup Python import paths for AlgoTune modules."""
+    # The AlgoTune path should be passed as a parameter to the evaluator
+    possible_algotune_paths = [
+        Path(__file__).parent.parent.parent.parent / "AlgoTune",
+        Path.home() / "github" / "AlgoTune",
+    ]
+    
+    algotune_base = None
+    for path in possible_algotune_paths:
+        if path.exists():
+            algotune_base = path
+            break
+    
+    if algotune_base is None:
+        print("Warning: Could not find AlgoTune installation")
+        return False
+    
+    # Add AlgoTune base directory to path
+    if str(algotune_base) not in sys.path:
+        sys.path.insert(0, str(algotune_base))
+    
+    return True
 
-# Try to import AlgoTune tasks
-try:
-    from AlgoTuneTasks.base import TASK_REGISTRY
-    # Import the specific {task_name} task to register it
-    from AlgoTuneTasks.{task_name}.{task_name} import {class_info['name']}
-    print("Successfully imported AlgoTune tasks and {task_name}")
-except ImportError as e:
-    print(f"Error: Could not import AlgoTune tasks: {{e}}")
-    print("Make sure AlgoTune is properly installed and accessible")
+# Setup paths and try to import AlgoTune tasks
+if setup_algotune_paths():
+    try:
+        from AlgoTuneTasks.base import TASK_REGISTRY
+        # Import the specific {task_name} task to register it
+        from AlgoTuneTasks.{task_name}.{task_name} import {class_info['name']}
+        print("Successfully imported AlgoTune tasks and {task_name}")
+    except ImportError as e:
+        print(f"Error: Could not import AlgoTune tasks: {{e}}")
+        print("Make sure AlgoTune is properly installed and accessible")
+        TASK_REGISTRY = {{}}
+else:
+    print("Warning: Could not setup AlgoTune paths")
     TASK_REGISTRY = {{}}
 
 def run_with_timeout(func, args=(), kwargs={{}}, timeout_seconds=30):
@@ -419,33 +465,194 @@ def safe_convert(value):
     except Exception:
         return value
 
+def calculate_speedup(baseline_time_ms: float, evolved_time_ms: float, is_valid: bool) -> Optional[float]:
+    """
+    Calculate speedup between baseline and evolved solution.
+    
+    Speedup = (Baseline Time) / (Evolved Time)
+    Higher is better.
+    
+    Args:
+        baseline_time_ms: Time taken by baseline implementation
+        evolved_time_ms: Time taken by evolved solution
+        is_valid: Whether the evolved solution is valid
+        
+    Returns:
+        Speedup value or None if calculation is not possible
+    """
+    if not is_valid:
+        return None
+        
+    if baseline_time_ms is None or baseline_time_ms <= 0:
+        return None
+        
+    if evolved_time_ms is None:
+        return None
+        
+    if evolved_time_ms <= 0:
+        return float('inf')  # Infinite speedup for instant solution
+        
+    return baseline_time_ms / evolved_time_ms
+
+def measure_baseline_performance(task_instance, problem, num_runs=3, warmup_runs=1):
+    """
+    Measure baseline performance using the original AlgoTune implementation.
+    
+    Args:
+        task_instance: The AlgoTune task instance
+        problem: Problem to solve
+        num_runs: Number of timing runs
+        warmup_runs: Number of warmup runs
+        
+    Returns:
+        Dictionary with baseline timing results
+    """
+    try:
+        # Warmup runs
+        for _ in range(warmup_runs):
+            try:
+                task_instance.solve(problem)
+            except Exception:
+                pass  # Ignore warmup errors
+                
+        # Timing runs
+        times = []
+        for _ in range(num_runs):
+            start_time = time.perf_counter()
+            try:
+                result = task_instance.solve(problem)
+                end_time = time.perf_counter()
+                if result is not None:
+                    elapsed_ms = (end_time - start_time) * 1000
+                    times.append(elapsed_ms)
+            except Exception as e:
+                print(f"Baseline run failed: {{e}}")
+                continue
+                
+        if not times:
+            return {{
+                "success": False,
+                "error": "All baseline runs failed",
+                "avg_time_ms": None,
+                "min_time_ms": None,
+                "std_time_ms": None
+            }}
+            
+        return {{
+            "success": True,
+            "avg_time_ms": float(np.mean(times)),
+            "min_time_ms": float(np.min(times)),
+            "std_time_ms": float(np.std(times)),
+            "times": times
+        }}
+        
+    except Exception as e:
+        return {{
+            "success": False,
+            "error": str(e),
+            "avg_time_ms": None,
+            "min_time_ms": None,
+            "std_time_ms": None
+        }}
+
+def measure_evolved_performance(program, problem, num_runs=3, warmup_runs=1, timeout_seconds=30):
+    """
+    Measure evolved solution performance.
+    
+    Args:
+        program: The evolved program module
+        problem: Problem to solve
+        num_runs: Number of timing runs
+        warmup_runs: Number of warmup runs
+        timeout_seconds: Timeout per run
+        
+    Returns:
+        Dictionary with evolved timing results
+    """
+    try:
+        # Warmup runs
+        for _ in range(warmup_runs):
+            try:
+                run_with_timeout(program.run_solver, args=(problem,), timeout_seconds=timeout_seconds)
+            except Exception:
+                pass  # Ignore warmup errors
+                
+        # Timing runs
+        times = []
+        results = []
+        for _ in range(num_runs):
+            start_time = time.perf_counter()
+            try:
+                result = run_with_timeout(program.run_solver, args=(problem,), timeout_seconds=timeout_seconds)
+                end_time = time.perf_counter()
+                elapsed_ms = (end_time - start_time) * 1000
+                times.append(elapsed_ms)
+                results.append(result)
+            except TimeoutError:
+                print(f"Evolved solution timed out after {{timeout_seconds}} seconds")
+                continue
+            except Exception as e:
+                print(f"Evolved run failed: {{e}}")
+                continue
+                
+        if not times:
+            return {{
+                "success": False,
+                "error": "All evolved runs failed",
+                "avg_time_ms": None,
+                "min_time_ms": None,
+                "std_time_ms": None,
+                "results": []
+            }}
+            
+        return {{
+            "success": True,
+            "avg_time_ms": float(np.mean(times)),
+            "min_time_ms": float(np.min(times)),
+            "std_time_ms": float(np.std(times)),
+            "times": times,
+            "results": results
+        }}
+        
+    except Exception as e:
+        return {{
+            "success": False,
+            "error": str(e),
+            "avg_time_ms": None,
+            "min_time_ms": None,
+            "std_time_ms": None,
+            "results": []
+        }}
+
 def evaluate(program_path, config=None):
     """
-    Evaluate the evolved program by running it on test problems and comparing
-    with reference solutions from the original AlgoTune task.
+    Enhanced evaluation with baseline comparison for {task_name} task.
     
     This evaluator:
     1. Loads the evolved solve method from initial_program.py
     2. Generates test problems using the original AlgoTune task
-    3. Runs the evolved solution and measures performance
-    4. Validates correctness using the original task's validation method
+    3. Measures baseline performance using original AlgoTune implementation
+    4. Measures evolved solution performance
+    5. Calculates speedup as primary fitness score
+    6. Validates correctness using the original task's validation method
 
     Args:
         program_path: Path to the evolved program file (initial_program.py)
         config: Configuration dictionary with evaluator settings
 
     Returns:
-        Dictionary of metrics
+        Dictionary of metrics including speedup as primary fitness score
     """
     try:
         # Load configuration
         if config is None:
-            # Default configuration if none provided
             config = {{
                 "algotune": {{
                     "num_trials": 5,
                     "data_size": 5,
-                    "timeout": 30
+                    "timeout": 30,
+                    "num_runs": 3,
+                    "warmup_runs": 1
                 }}
             }}
         
@@ -454,6 +661,8 @@ def evaluate(program_path, config=None):
         num_trials = algotune_config.get("num_trials", 5)
         data_size = algotune_config.get("data_size", 5)
         timeout_seconds = algotune_config.get("timeout", 30)
+        num_runs = algotune_config.get("num_runs", 3)
+        warmup_runs = algotune_config.get("warmup_runs", 1)
         
         # Load the program
         spec = importlib.util.spec_from_file_location("program", program_path)
@@ -461,13 +670,21 @@ def evaluate(program_path, config=None):
         spec.loader.exec_module(program)
 
         # Check if the required function exists
-        # The run_solver function calls the evolved solve method from the class
         if not hasattr(program, "run_solver"):
             print(f"Error: program does not have 'run_solver' function")
             return {{
                 "correctness_score": 0.0,
                 "performance_score": 0.0,
                 "combined_score": 0.0,
+                "speedup_score": 0.0,  # Primary fitness score
+                "baseline_comparison": {{
+                    "mean_speedup": None,
+                    "median_speedup": None,
+                    "success_rate": 0.0,
+                    "baseline_times": [],
+                    "evolved_times": [],
+                    "speedups": []
+                }},
                 "error": "Missing run_solver function",
             }}
 
@@ -481,54 +698,78 @@ def evaluate(program_path, config=None):
             print(f"Available tasks: {{list(TASK_REGISTRY.keys())}}")
             raise Exception("Could not load {task_name} task from AlgoTune registry")
 
-        # Generate test problems
+        # Generate test problems and evaluate
         correctness_scores = []
         performance_scores = []
+        baseline_times = []
+        evolved_times = []
+        speedups = []
+        valid_count = 0
         success_count = 0
 
         for trial in range(num_trials):
             try:
-                start_time = time.time()
-
                 # Generate a test problem using the original task
                 if task_class:
-                    # Use the original task to generate problems
                     task_instance = task_class()
                     problem = task_instance.generate_problem(n=data_size, random_seed=trial)
                 else:
                     raise Exception("Could not load original AlgoTune task for problem generation")
 
-                # Run the evolved solution from initial_program.py
-                result = run_with_timeout(program.run_solver, args=(problem,), timeout_seconds=timeout_seconds)
-                end_time = time.time()
+                # Measure baseline performance
+                baseline_result = measure_baseline_performance(
+                    task_instance, problem, num_runs, warmup_runs
+                )
+                
+                if not baseline_result["success"]:
+                    print(f"Trial {{trial}}: Baseline measurement failed: {{baseline_result.get('error', 'Unknown error')}}")
+                    continue
 
-                # Convert result to comparable format
-                result = safe_convert(result)
+                # Measure evolved performance
+                evolved_result = measure_evolved_performance(
+                    program, problem, num_runs, warmup_runs, timeout_seconds
+                )
+                
+                if not evolved_result["success"]:
+                    print(f"Trial {{trial}}: Evolved measurement failed: {{evolved_result.get('error', 'Unknown error')}}")
+                    continue
 
-                # Evaluate correctness using the evolved solve method
+                # Validate evolved solution
                 correctness_score = 0.0
-                if task_class:
+                is_valid = False
+                
+                if evolved_result["results"]:
+                    # Use the first result for validation
+                    evolved_solution = evolved_result["results"][0]
+                    evolved_solution = safe_convert(evolved_solution)
+                    
                     try:
-                        # Check if solution is valid using original task's is_solution method
-                        is_valid = task_instance.is_solution(problem, result)
+                        is_valid = task_instance.is_solution(problem, evolved_solution)
                         correctness_score = 1.0 if is_valid else 0.0
                     except Exception as e:
                         print(f"Trial {{trial}}: Error checking solution validity: {{e}}")
                         correctness_score = 0.0
-                else:
-                    raise Exception("Could not load original AlgoTune task for solution validation")
+                        is_valid = False
 
-                # Evaluate performance (time-based)
-                execution_time = end_time - start_time
-                performance_score = 1.0 / (1.0 + execution_time) if execution_time > 0 else 0.0
+                # Calculate speedup
+                baseline_time = baseline_result["min_time_ms"]  # Use minimum time for fair comparison
+                evolved_time = evolved_result["min_time_ms"]
+                speedup = calculate_speedup(baseline_time, evolved_time, is_valid)
 
+                # Store results
                 correctness_scores.append(correctness_score)
+                baseline_times.append(baseline_time)
+                evolved_times.append(evolved_time)
+                
+                if speedup is not None:
+                    speedups.append(speedup)
+                    valid_count += 1
+                
+                # Performance score based on execution time
+                performance_score = 1.0 / (1.0 + evolved_time) if evolved_time > 0 else 0.0
                 performance_scores.append(performance_score)
                 success_count += 1
 
-            except TimeoutError as e:
-                print(f"Trial {{trial}}: {{str(e)}}")
-                continue
             except Exception as e:
                 print(f"Trial {{trial}}: Error - {{str(e)}}")
                 print(traceback.format_exc())
@@ -540,6 +781,15 @@ def evaluate(program_path, config=None):
                 "correctness_score": 0.0,
                 "performance_score": 0.0,
                 "combined_score": 0.0,
+                "speedup_score": 0.0,  # Primary fitness score
+                "baseline_comparison": {{
+                    "mean_speedup": None,
+                    "median_speedup": None,
+                    "success_rate": 0.0,
+                    "baseline_times": [],
+                    "evolved_times": [],
+                    "speedups": []
+                }},
                 "error": "All trials failed",
             }}
 
@@ -548,17 +798,40 @@ def evaluate(program_path, config=None):
         avg_performance = float(np.mean(performance_scores))
         reliability_score = float(success_count / num_trials)
 
-        # Combined score prioritizing correctness
+        # Calculate speedup as primary fitness score
+        if speedups:
+            mean_speedup = float(np.mean(speedups))
+            # Use speedup as primary fitness score (higher is better)
+            speedup_score = mean_speedup
+        else:
+            speedup_score = 0.0
+            mean_speedup = None
+
+        # Combined score prioritizing correctness (kept for compatibility)
         combined_score = float(
             0.7 * avg_correctness + 0.2 * avg_performance + 0.1 * reliability_score
         )
+
+        # Calculate baseline comparison metrics
+        baseline_comparison = {{
+            "mean_speedup": mean_speedup,
+            "median_speedup": float(np.median(speedups)) if speedups else None,
+            "success_rate": float(valid_count / success_count) if success_count > 0 else 0.0,
+            "baseline_times": baseline_times,
+            "evolved_times": evolved_times,
+            "speedups": speedups,
+            "num_valid_solutions": valid_count,
+            "num_total_trials": success_count
+        }}
 
         return {{
             "correctness_score": avg_correctness,
             "performance_score": avg_performance,
             "reliability_score": reliability_score,
             "combined_score": combined_score,
+            "speedup_score": speedup_score,  # Primary fitness score for evolution
             "success_rate": reliability_score,
+            "baseline_comparison": baseline_comparison,
         }}
 
     except Exception as e:
@@ -568,6 +841,15 @@ def evaluate(program_path, config=None):
             "correctness_score": 0.0,
             "performance_score": 0.0,
             "combined_score": 0.0,
+            "speedup_score": 0.0,  # Primary fitness score
+            "baseline_comparison": {{
+                "mean_speedup": None,
+                "median_speedup": None,
+                "success_rate": 0.0,
+                "baseline_times": [],
+                "evolved_times": [],
+                "speedups": []
+            }},
             "error": str(e),
         }}
 
@@ -646,7 +928,7 @@ def evaluate_stage2(program_path, config=None):
         return evaluator
     
     def _generate_config(self, task_name: str) -> str:
-        """Generate the configuration for OpenEvolve."""
+        """Generate the configuration for OpenEvolve with baseline comparison."""
         import re
         
         description = self.get_task_description(task_name)
@@ -699,7 +981,7 @@ def evaluate_stage2(program_path, config=None):
         clean_description = clean_description.replace('\\}', '\\\\}')
         
         # Ensure the description doesn't exceed reasonable length for YAML
-        max_length = 1e3
+        max_length = 1000  # Changed from 1e3 to 1000
         if len(clean_description) > max_length:
             # Try to truncate at a word boundary
             truncated = clean_description[:max_length]
@@ -710,7 +992,18 @@ def evaluate_stage2(program_path, config=None):
                 # If no good word boundary, truncate and ensure we don't break escape sequences
                 clean_description = truncated.rstrip('\\') + "..."
         
-        config = f'''# Configuration for {task_name} task
+        # Insert the new system prompt before the task description
+        system_prompt = (
+            "SETTING:\n"
+            "You're an autonomous programmer tasked with solving a specific problem. You are to use the commands defined below to accomplish this task. Every message you send incurs a cost—you will be informed of your usage and remaining budget by the system.\n"
+            "You will be evaluated based on the best-performing piece of code you produce, even if the final code doesn't work or compile (as long as it worked at some point and achieved a score, you will be eligible).\n"
+            "Apart from the default Python packages, you have access to the following additional packages:\n"
+            " - cryptography\n - cvxpy\n - cython\n - dace\n - dask\n - diffrax\n - ecos\n - faiss-cpu\n - hdbscan\n - highspy\n - jax\n - networkx\n - numba\n - numpy\n - ortools\n - pandas\n - pot\n - psutil\n - pulp\n - pyomo\n - python-sat\n - pythran\n - scikit-learn\n - scipy\n - sympy\n - torch\n"
+            "Your primary objective is to optimize the `solve` function to run as as fast as possible, while returning the optimal solution.\n"
+            "You will receive better scores the quicker your solution runs, and you will be penalized for exceeding the time limit or returning non-optimal solutions.\n\n"
+            "Below you find the description of the task you will have to solve. Read it carefully and understand what the problem is and what your solver should do.\n\n"
+        )
+        config = f'''# Configuration for {task_name} task with baseline comparison
 max_iterations: 100
 checkpoint_interval: 10
 log_level: "INFO"
@@ -728,7 +1021,7 @@ llm:
 
 # Prompt configuration
 prompt:
-  system_message: "You are an expert programmer specializing in {category} algorithms. Your task is to improve the {task_name} algorithm implementation. The problem description is: {clean_description}. Focus on improving the solve method to correctly handle the input format and produce valid solutions efficiently."
+  system_message: "{system_prompt}You are an expert programmer specializing in {category} algorithms. Your task is to improve the {task_name} algorithm implementation with baseline comparison. The problem description is: {clean_description}. Focus on improving the solve method to correctly handle the input format and produce valid solutions efficiently. Your solution will be compared against the reference AlgoTune baseline implementation to measure speedup and correctness."
   num_top_programs: 3
   use_template_stochasticity: true
 
@@ -747,11 +1040,13 @@ evaluator:
   parallel_evaluations: 4
   use_llm_feedback: false
 
-# AlgoTune task-specific configuration
+# AlgoTune task-specific configuration with baseline comparison
 algotune:
   num_trials: 5
   data_size: 5
   timeout: 30
+  num_runs: 3
+  warmup_runs: 1
 
 # Evolution settings
 diff_based_evolution: true

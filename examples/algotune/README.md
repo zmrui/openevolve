@@ -1,31 +1,83 @@
 # AlgoTune Task Adapter for OpenEvolve
 
-This directory contains tools to evaluate OpenEvolve on AlgoTune tasks.
+This directory contains tools to convert AlgoTune tasks to OpenEvolve format for evolutionary optimization.
 
 ## Overview
 
-The AlgoTune Task Adapter automatically extracts and converts AlgoTune tasks into OpenEvolve-compatible format. This adapter:
+The `AlgoTuneTaskAdapter` extracts tasks from an external AlgoTune repository and converts them to OpenEvolve format, creating:
+- `initial_program.py` - The initial implementation to be evolved
+- `evaluator.py` - Evaluation logic with baseline comparison
+- `config.yaml` - OpenEvolve configuration
 
-- **Extracts task information** from AlgoTune's task registry and description files
-- **Generates OpenEvolve files** including initial programs, evaluators, and configurations
-- **Preserves task semantics** while adapting to OpenEvolve's evolution framework
-- **Supports all 155 algorithmic tasks** from the AlgoTune benchmark suite
+## Prerequisites
 
-### Key Contributions
+**AlgoTune Repository**: Clone the AlgoTune repository
+   ```bash
+   git clone https://github.com/oripress/AlgoTune.git
+   ```
 
-The adapter performs several critical transformations:
 
-1. **Task Extraction**: Parses AlgoTune task files to extract class definitions, solve methods, and problem specifications
-2. **Code Generation**: Creates OpenEvolve-compatible initial programs with proper evolution blocks
-3. **Evaluation Integration**: Generates evaluators that compare evolved solutions against original AlgoTune reference implementations
-4. **Configuration Mapping**: Translates AlgoTune task parameters to OpenEvolve configuration settings
+## Usage
 
-## Generated Files
+### Basic Usage
+
+```python
+from task_adapter import AlgoTuneTaskAdapter
+
+# Initialize with AlgoTune repository path
+adapter = AlgoTuneTaskAdapter(algotune_path="/path/to/AlgoTune")
+
+# List available tasks
+tasks = adapter.list_available_tasks()
+print(f"Available tasks: {tasks}")
+
+# Create OpenEvolve files for a specific task
+output_dir = adapter.create_task_files("svm")
+print(f"Created files in: {output_dir}")
+```
+
+### Command Line Usage
+
+#### List Available Tasks
+```bash
+python generate_all_tasks.py --algotune-path /path/to/AlgoTune --list
+```
+
+#### Generate Files for a Specific Task
+```bash
+python create_task.py --algotune-path /path/to/AlgoTune --task svm
+```
+
+#### Generate All Tasks
+```bash
+python generate_all_tasks.py --algotune-path /path/to/AlgoTune
+```
+
+## File Structure
 
 For each task, the adapter creates:
-- `initial_program.py` - The starting program for evolution with EVOLVE-BLOCK markers
-- `evaluator.py` - The evaluation function that tests correctness and performance
-- `config.yaml` - OpenEvolve configuration with task-specific settings
+
+```
+task_name/
+├── initial_program.py    # Initial implementation to evolve
+├── evaluator.py         # Evaluation logic with baseline comparison
+└── config.yaml          # OpenEvolve configuration
+```
+
+## Configuration
+
+The adapter automatically generates OpenEvolve configurations with:
+- Baseline comparison against original AlgoTune implementations
+- Speedup-based fitness scoring
+- Cascade evaluation for efficiency
+- Task-specific problem generation
+
+## Evaluation Features
+
+The generated evaluators include:
+- **Baseline Comparison**: Compares evolved solutions against original AlgoTune implementations
+- **Speedup Measurement**: Calculates performance improvements
+- **Correctness Validation**: Ensures solutions are valid
 
 ## Example: SVM Task
 
@@ -118,33 +170,15 @@ The evaluator:
 ## Files
 
 - `task_adapter.py` - Main adapter that converts AlgoTune tasks to OpenEvolve format
-- `create_task.py` - Simple script to create OpenEvolve files for a single task
+- `create_task.py` - Script to create OpenEvolve files for a single task
 - `generate_all_tasks.py` - Script to generate all 155 AlgoTune tasks
 
-## Usage
+## Integration with OpenEvolve
 
-### Generate a Single Task
-
-```bash
-# List all available tasks
-python create_task.py --list
-
-# Generate OpenEvolve files for a specific task
-python create_task.py svm
-python create_task.py kmeans
-```
-
-### Generate All Tasks
+Once files are generated, you can run OpenEvolve:
 
 ```bash
-# Generate all 155 tasks
-python generate_all_tasks.py
-```
-
-### Run Evolution
-
-```bash
-# Navigate to a generated task directory
+# Navigate to the task directory
 cd svm/
 
 # Run OpenEvolve on the task

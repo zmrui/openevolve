@@ -1,42 +1,72 @@
 #!/usr/bin/env python3
 """
-Simple script to create OpenEvolve tasks from AlgoTune tasks.
+Script to create OpenEvolve task files from AlgoTune tasks.
 
-Usage:
-    python create_task.py <task_name>
-    python create_task.py --list
+This script demonstrates how to use the AlgoTuneTaskAdapter to convert
+AlgoTune tasks to OpenEvolve format using external AlgoTune repositories.
 """
 
 import sys
+import argparse
 from pathlib import Path
-
-# Add the current directory to path so we can import task_adapter
-sys.path.insert(0, str(Path(__file__).parent))
-
 from task_adapter import AlgoTuneTaskAdapter
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python create_task.py <task_name>")
-        print("       python create_task.py --list")
-        return 1
+    """Main function to create OpenEvolve task files."""
     
-    task_name = sys.argv[1]
+    parser = argparse.ArgumentParser(description="Create OpenEvolve task files from AlgoTune tasks")
+    parser.add_argument(
+        "--task",
+        type=str,
+        required=True,
+        help="Task name to create OpenEvolve files for"
+    )
     
-    if task_name == "--list":
-        adapter = AlgoTuneTaskAdapter()
-        print("Available AlgoTune tasks:")
-        for task_name in adapter.list_available_tasks():
-            print(f"  - {task_name}")
-        return 0
+    parser.add_argument(
+        "--algotune-path",
+        type=str,
+        required=True,
+        help="Path to AlgoTune repository directory (e.g., /path/to/AlgoTune)"
+    )
+
+    args = parser.parse_args()
     
     try:
-        adapter = AlgoTuneTaskAdapter()
-        output_path = adapter.create_task_files(task_name)
-        print(f"✅ Successfully created OpenEvolve files for '{task_name}' in: {output_path}")
+        # Initialize the adapter with AlgoTune path
+        adapter = AlgoTuneTaskAdapter(algotune_path=args.algotune_path, task=args.task)
+        
+        # List available tasks
+        available_tasks = adapter.list_available_tasks()
+        print(f"Available tasks: {len(available_tasks)}")
+        print(available_tasks)
+        
+        task_name = args.task
+        
+        # Check if the task exists
+        if task_name not in available_tasks:
+            print(f"Error: Task '{task_name}' not found")
+            print(f"Available tasks: {available_tasks[:10]}...")
+            return 1
+        
+        # Create the OpenEvolve files
+        print(f"\nCreating OpenEvolve files for task: {task_name}")
+        output_dir = adapter.create_task_files(task_name)
+        print(f"✅ Created files in: {output_dir}")
+        
+        # List the created files
+        output_path = Path(output_dir)
+        created_files = list(output_path.glob("*"))
+        print("Created files:")
+        for file in created_files:
+            print(f"  - {file.name}")
+        
+        print(f"\n✅ Successfully created OpenEvolve files for '{task_name}'")
         return 0
+    
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
+        print("\nExample usage:")
+        print("  python create_task.py --algotune-path /path/to/AlgoTune --task svm")
         return 1
 
 if __name__ == "__main__":

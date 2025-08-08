@@ -38,6 +38,7 @@ class OpenAILLM(LLMInterface):
         self.client = openai.OpenAI(
             api_key=self.api_key,
             base_url=self.api_base,
+            timeout=self.timeout,
         )
 
         # Only log unique models to reduce duplication

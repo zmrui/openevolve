@@ -45,6 +45,15 @@ def validate_packing(centers, radii):
         print("NaN values detected in circle radii")
         return False
 
+    # Check if radii are nonnegative and not nan
+    for i in range(n):
+        if(radii[i] < 0):
+            print(f"Circle {i} has negative radius {radii[i]}")
+            return False
+        elif(np.isnan(radii[i])):
+            print(f"Circle {i} has nan radius")
+            return False
+
     # Check if circles are inside the unit square
     for i in range(n):
         x, y = centers[i]

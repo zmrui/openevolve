@@ -12,9 +12,15 @@
 
 # Task
 Rewrite the prompt to improve its performance on the specified metrics.
-Provide the complete new prompt text.
+Focus on clarity, specificity, and effectiveness for the target task.
 
-IMPORTANT: Make sure your rewritten prompt maintains the same input placeholder ({{input_text}})
-but with improved instructions for better LLM performance.
+CRITICAL REQUIREMENTS:
+1. Keep the EXACT same placeholder from the original prompt (e.g., {{instruction}}, {{claim}}, etc.)
+2. Do not add any new placeholders or change existing ones
+3. Make the instructions clearer and more specific
+4. Focus on what will improve accuracy and task performance
+5. Keep the prompt concise but effective
 
-Your improved prompt:
+Provide ONLY the complete new prompt text, with no additional commentary:
+
+NEW PROMPT:

@@ -1,16 +1,78 @@
 # LLM Prompt Optimization with OpenEvolve 🚀
 
-This example demonstrates how to use OpenEvolve to automatically optimize prompts for Large Language Models. The system uses evolutionary search to discover high-performing prompts by testing them against ground truth data from various datasets.
+This example demonstrates how to use OpenEvolve to automatically optimize prompts for Large Language Models across various benchmark datasets. The system uses evolutionary search to discover high-performing prompts, achieving significant improvements across multiple tasks.
+
+## 📊 Latest Performance Results (GEPA Benchmarks)
+
+OpenEvolve successfully improved prompt performance across three challenging GEPA benchmarks:
+
+| Dataset | Baseline Accuracy | Evolved Accuracy | Improvement | Samples |
+|---------|------------------|------------------|-------------|---------|
+| **IFEval** | 95.01% | 97.41% | **+2.40%** ✅ | 541 |
+| **HoVer** | 43.83% | 42.90% | -0.93% | 4,000 |
+| **HotpotQA** | 77.93% | 88.62% | **+10.69%** ✅ | 7,405 |
+| **Overall** | 67.29% | 73.71% | **+6.42%** ✅ | 11,946 |
+
+### Key Achievements:
+- **767 more correct answers** across all datasets
+- **38% fewer empty responses** with evolved prompts
+- **Near-perfect performance** on instruction following (IFEval: 97.41%)
+- **Major improvement** in multi-hop reasoning (HotpotQA: 88.62%)
 
 ## 🎯 Overview
 
 OpenEvolve automatically:
-- Loads datasets from various sources
-- Evolves prompts through multiple generations
-- Uses cascading evaluation for efficiency
-- Finds optimal prompts for your specific task and model
+- Evolves prompts through multiple generations using LLMs
+- Uses cascading evaluation for efficient testing
+- Employs MAP-Elites algorithm to maintain diversity
+- Incorporates LLM feedback for qualitative assessment
+- Supports various datasets from HuggingFace
 
-**Key Feature**: The evaluator automatically matches prompt files with dataset configurations using a naming convention (`xxx_prompt.txt` → `xxx_prompt_dataset.yaml`), making it easy to manage multiple benchmark tasks.
+## 📊 All Supported Datasets
+
+### GEPA Benchmarks (Latest Focus)
+
+#### IFEval (Instruction Following Eval)
+- **Task**: Follow complex, multi-constraint instructions
+- **Size**: 541 samples (train split)
+- **Metric**: Binary success on instruction adherence
+- **Results**: 95.01% → 97.41% (+2.40%)
+- **Config**: `ifeval_prompt_dataset.yaml`
+
+#### HoVer (Claim Verification)
+- **Task**: Verify claims as SUPPORTED or NOT_SUPPORTED
+- **Size**: 4,000 samples (validation split)
+- **Metric**: Binary classification accuracy
+- **Results**: 43.83% → 42.90% (-0.93%)
+- **Config**: `hover_prompt_dataset.yaml`
+- **Note**: Uses integer labels (0=SUPPORTED, 1=NOT_SUPPORTED)
+
+#### HotpotQA (Multi-hop Question Answering)
+- **Task**: Answer questions requiring reasoning over multiple paragraphs
+- **Size**: 7,405 samples (validation split)
+- **Metric**: Exact match with answer
+- **Results**: 77.93% → 88.62% (+10.69%)
+- **Config**: `hotpotqa_prompt_dataset.yaml`
+
+### Additional Datasets (Earlier Experiments)
+
+#### Emotion Classification
+- **Task**: Classify emotions in text (6 classes)
+- **Dataset**: `dair-ai/emotion`
+- **Config**: `emotion_prompt_dataset.yaml`
+- **Benchmark**: Compared against DSPy results
+
+#### GSM8K (Grade School Math)
+- **Task**: Solve grade school math word problems
+- **Dataset**: `gsm8k`
+- **Config**: `gsm8k_prompt_dataset.yaml`
+- **Benchmark**: DSPy achieves 97.1%
+
+#### IMDB Sentiment Analysis
+- **Task**: Binary sentiment classification
+- **Dataset**: `stanfordnlp/imdb`
+- **Config**: `initial_prompt_dataset.yaml`
+- **Example Evolution**: 72% → 94% accuracy
 
 ## 🚀 Quick Start
 
@@ -21,173 +83,176 @@ cd examples/llm_prompt_optimization
 pip install -r requirements.txt
 ```
 
-### 2. Configure Your Model
+### 2. Set Your API Key
 
-Update `config.yaml` with your LLM settings:
+```bash
+export OPENAI_API_KEY="your_openrouter_api_key"
+```
 
+Note: Despite the variable name, this uses OpenRouter API. Get your key at https://openrouter.ai/
+
+### 3. Evaluate Prompts
+
+Use the unified evaluation script to test baseline or evolved prompts:
+
+```bash
+# Evaluate baseline prompts on a single dataset
+python evaluate_prompts.py --dataset ifeval --prompt-type baseline --samples 100
+
+# Evaluate evolved prompts on a single dataset
+python evaluate_prompts.py --dataset hover --prompt-type evolved --samples 100
+
+# Evaluate all GEPA datasets with evolved prompts (full dataset)
+python evaluate_prompts.py --dataset all --prompt-type evolved
+
+# Specify output file
+python evaluate_prompts.py --dataset all --prompt-type evolved --output results.json
+```
+
+### 4. Run Evolution
+
+To evolve prompts from scratch:
+
+```bash
+# For GEPA benchmarks
+python ../../openevolve-run.py ifeval_prompt.txt evaluator.py \
+  --config config_qwen3_evolution.yaml \
+  --iterations 50
+
+# For other datasets (using wrapper script)
+./run_evolution.sh emotion_prompt.txt --iterations 50
+./run_evolution.sh gsm8k_prompt.txt --iterations 100
+```
+
+## ⚙️ Configuration Files
+
+### Evolution Configurations
+
+#### GEPA Benchmarks (`config_qwen3_evolution.yaml`)
+```yaml
+llm:
+  models:
+    - name: "qwen/qwen3-8b"
+      weight: 1.0
+  temperature: 0.7
+  max_tokens: 4096
+
+evaluator:
+  cascade_evaluation: true
+  cascade_thresholds: [0.9]  # 2-stage evaluation
+  timeout: 1800  # 30 minutes
+  use_llm_feedback: true
+  llm_feedback_weight: 0.3
+
+database:
+  n_islands: 4  # Island-based evolution
+  migration_interval: 10
+```
+
+#### General Configuration (`config.yaml`)
 ```yaml
 llm:
   api_base: "https://openrouter.ai/api/v1"
-  api_key: "your_api_key_here"
   models:
-    - name: "google/gemini-2.5-flash"  # Or any OpenAI-compatible model
+    - name: "google/gemini-2.5-flash"
       weight: 1.0
 ```
 
-### 3. Set Up Your Dataset and Prompt
+### Dataset Configurations
 
-This example uses a naming convention to match prompts with their dataset configurations:
-- For a prompt file `xxx_prompt.txt`, create a matching `xxx_prompt_dataset.yaml`
-- For example: `emotion_prompt.txt` uses `emotion_prompt_dataset.yaml`
-
-Create your dataset configuration file (e.g., `emotion_prompt_dataset.yaml`):
+Each dataset has its own configuration file following the pattern `*_prompt_dataset.yaml`:
 
 ```yaml
-# Dataset configuration
-dataset_name: "dair-ai/emotion"   # Dataset identifier
-input_field: "text"               # Field containing input data
-target_field: "label"             # Field containing ground truth
-split: "test"                     # Dataset split to use
-
-# Evaluation samples
-max_samples: 200   # Number of samples to evaluate
+# Example: ifeval_prompt_dataset.yaml
+dataset_name: "google/IFEval"
+input_field: "prompt"
+target_field: "instruction_id_list"
+split: "train"
+is_ifeval: true  # Special handling flag
 ```
 
-Create your initial prompt file (e.g., `emotion_prompt.txt`):
+## 🧬 Evolution Process
+
+### How It Works
+
+1. **Initial Population**: Start with baseline prompt
+2. **Variation**: LLM generates prompt mutations
+3. **Evaluation**: Test on dataset samples (10 for Stage 1, 40 for Stage 2)
+4. **Selection**: Keep best performers based on combined score
+5. **Island Evolution**: 4 isolated populations with periodic migration
+6. **Iteration**: Repeat for specified generations (typically 50-100)
+
+### Cascade Evaluation
+
+- **Stage 1**: Quick test on 10 samples (must achieve 90% to proceed)
+- **Stage 2**: Comprehensive test on 40 samples
+- **Combined Score**: 70% task accuracy + 30% LLM feedback
+
+### LLM Feedback Metrics
+
+Evolved prompts are evaluated on:
+- **Clarity**: Unambiguous instructions
+- **Specificity**: Appropriate detail level
+- **Robustness**: Edge case handling
+- **Format Specification**: Clear output requirements
+
+## 📁 Complete File Structure
 
 ```
-Classify the emotion expressed in the following text.
-
-Text: "{input_text}"
-
-Emotion (0-5):
+llm_prompt_optimization/
+├── evaluate_prompts.py          # Unified evaluation script
+├── evaluator.py                 # OpenEvolve evaluator
+├── run_evolution.sh             # Wrapper script for evolution
+│
+├── Configuration Files
+│   ├── config.yaml              # General LLM config
+│   ├── config_qwen3_evolution.yaml  # GEPA evolution config
+│   └── config_qwen3_baseline.yaml   # GEPA baseline config
+│
+├── Dataset Configurations & Prompts
+│   ├── ifeval_prompt.txt & ifeval_prompt_dataset.yaml
+│   ├── hover_prompt.txt & hover_prompt_dataset.yaml
+│   ├── hotpotqa_prompt.txt & hotpotqa_prompt_dataset.yaml
+│   ├── emotion_prompt.txt & emotion_prompt_dataset.yaml
+│   ├── gsm8k_prompt.txt & gsm8k_prompt_dataset.yaml
+│   └── initial_prompt.txt & initial_prompt_dataset.yaml
+│
+├── Evolution Templates
+│   └── templates/
+│       ├── full_rewrite_user.txt
+│       ├── evaluation.txt
+│       └── evaluator_system_message.txt
+│
+├── Results
+│   ├── evaluation_results_baseline_20250809_070942.json
+│   ├── evaluation_results_evolved_20250809_103002.json
+│   └── openevolve_output_qwen3_*/
+│       └── best/
+│           └── best_program.txt     # Evolved prompt
+│
+└── requirements.txt
 ```
 
-### 4. Run OpenEvolve
+## 🔍 Example Evolved Prompts
 
-Use the provided `run_evolution.sh` script to ensure the correct dataset is used:
-
-```bash
-# For emotion classification benchmark
-./run_evolution.sh emotion_prompt.txt --iterations 50
-
-# For IMDB sentiment analysis
-./run_evolution.sh initial_prompt.txt --iterations 50
-
-# With custom iterations and checkpoint
-./run_evolution.sh emotion_prompt.txt --iterations 100 --checkpoint-interval 20
+### IFEval (97.41% accuracy)
+```
+Follow the instruction below precisely. Structure your response into two 
+distinct parts: 1) a step-by-step reasoning process that explicitly 
+identifies the task, constraints, and required output format, and 2) the 
+final answer in the exact format specified...
 ```
 
-The script automatically:
-- Sets the `OPENEVOLVE_PROMPT` environment variable so the evaluator knows which dataset to use
-- Passes all additional arguments to OpenEvolve
-- Ensures the correct `_dataset.yaml` file is matched with your prompt
-
-**Note**: If you prefer to run OpenEvolve directly, set the environment variable first:
-```bash
-export OPENEVOLVE_PROMPT=emotion_prompt.txt
-python ../../openevolve-run.py emotion_prompt.txt evaluator.py --config config.yaml --iterations 50
+### HotpotQA (88.62% accuracy)
+```
+Answer the following question using the provided context. The answer must 
+integrate information from multiple paragraphs and follow these steps:
+1. Paragraph Analysis: Extract key details from each relevant paragraph...
+2. Synthesis: Combine these details into a single, coherent response...
+3. Citation: Attribute all assertions to their source paragraphs...
 ```
 
-## 📊 Supported Datasets
-
-This optimizer works with a wide variety of datasets. Included examples:
-
-- **IMDB Sentiment**: `initial_prompt.txt` + `initial_prompt_dataset.yaml` (binary classification)
-- **Emotion**: `emotion_prompt.txt` + `emotion_prompt_dataset.yaml` (6-class, benchmark against DSPy)
-- **GSM8K**: `gsm8k_prompt.txt` + `gsm8k_prompt_dataset.yaml` (grade school math, DSPy achieves 97.1%)
-
-### Creating New Tasks
-
-To add a new dataset:
-1. Create `yourtask_prompt.txt` with the initial prompt
-2. Create `yourtask_prompt_dataset.yaml` with the dataset configuration
-3. Run: `./run_evolution.sh yourtask_prompt.txt --iterations 50`
-
-**Note**: If you call OpenEvolve directly without the wrapper script, the evaluator will look for a default `dataset_config.yaml` file.
-
-### Common Dataset Configurations:
-
-### Sentiment Analysis
-```yaml
-dataset_name: "stanfordnlp/imdb"
-input_field: "text"
-target_field: "label"  # 0 or 1
-```
-
-### Question Answering
-```yaml
-dataset_name: "squad"
-input_field: "question"
-target_field: "answers"  # Dict with 'text' field
-```
-
-### Text Classification
-```yaml
-dataset_name: "ag_news"
-input_field: "text"
-target_field: "label"  # 0-3 for categories
-```
-
-### Summarization
-```yaml
-dataset_name: "xsum"
-input_field: "document"
-target_field: "summary"
-```
-
-## ⚙️ How It Works
-
-### Simple Evaluation
-
-The evaluator uses a straightforward single-stage evaluation:
-
-1. **Load Dataset**: Downloads the specified dataset
-2. **Sample Data**: Takes `max_samples` examples from the dataset
-3. **Test Prompt**: Sends each example through the LLM with the prompt
-4. **Calculate Accuracy**: Compares LLM outputs to ground truth labels
-
-### Evolution Process
-
-1. OpenEvolve starts with your initial prompt
-2. The LLM generates variations based on performance feedback
-3. Each variant is tested using cascading evaluation
-4. Best performers are kept and evolved further
-5. Process continues for specified iterations
-
-### 🎭 Custom Templates for Prompt Evolution
-
-By default, OpenEvolve is designed for code evolution. To make it work properly for prompt evolution, this example includes custom templates in the `templates/` directory:
-
-- **`full_rewrite_user.txt`**: Replaces the default code evolution template with prompt-specific language
-
-This ensures the LLM understands it should evolve the prompt text itself, not generate code. The configuration automatically uses these templates via:
-
-```yaml
-prompt:
-  template_dir: "templates"  # Use custom templates for prompt evolution
-```
-
-## 🎯 Configuration Options
-
-### Evaluation Configuration
-
-In `config.yaml`:
-```yaml
-evaluator:
-  parallel_evaluations: 4      # Run 4 evaluations in parallel
-  cascade_evaluation: false    # Simple single-stage evaluation
-```
-
-### Sample Size
-
-Adjust in `dataset.yaml`:
-```yaml
-max_samples: 50    # Number of samples to evaluate
-```
-
-## 📈 Example Results
-
+### IMDB Sentiment (Example Evolution)
 Starting prompt:
 ```
 Analyze the sentiment: "{input_text}"
@@ -195,60 +260,99 @@ Analyze the sentiment: "{input_text}"
 
 Evolved prompt after 100 iterations:
 ```
-Analyze the sentiment of the following text. Determine if the overall emotional tone is positive or negative.
+Analyze the sentiment of the following text. Determine if the overall 
+emotional tone is positive or negative.
 
 Text: "{input_text}"
 
-Response: Provide only a single digit - either 1 for positive sentiment or 0 for negative sentiment. Do not include any explanation or additional text.
+Response: Provide only a single digit - either 1 for positive sentiment 
+or 0 for negative sentiment. Do not include any explanation or additional text.
 ```
-
 Accuracy improvement: 72% → 94%
 
-## 🔧 Advanced Usage
-
-### Custom Evaluation Metrics
-
-The evaluator extracts predictions and compares them to ground truth. For classification tasks, it looks for:
-- Exact number matches (0, 1, etc.)
-- Keywords (positive/negative, yes/no)
-- Custom patterns you define
-
-### Different Task Types
-
-While the default setup is for classification, you can modify the evaluator for:
-- **Regression**: Compare numeric outputs
-- **Generation**: Use BLEU/ROUGE scores
-- **Extraction**: Check if key information is present
-
 ## 🐛 Troubleshooting
+
+### HoVer Dataset Issues
+- **Problem**: Test split has no labels (all -1)
+- **Solution**: Use validation split (configured automatically)
+- **Labels**: Integer format (0=SUPPORTED, 1=NOT_SUPPORTED)
+
+### Empty Responses
+- **Cause**: Complex evolved prompts exceeding token limits
+- **Solution**: Increase max_tokens in evaluation or simplify prompts
+
+### Slow Evaluation
+- **IFEval**: ~1 minute per 100 samples
+- **HoVer**: ~30 minutes for full dataset
+- **HotpotQA**: ~45 minutes for full dataset
+- **Tip**: Use --samples flag for faster testing
 
 ### Dataset Not Found
 - Check the exact dataset name and source
 - Some datasets require acceptance of terms
+- Use `trust_remote_code=True` for certain datasets
 
-### Low Stage 1 Accuracy
-- Your initial prompt may be too vague
-- Check if the output format matches expectations
-- Verify the dataset fields are correct
+## 🚀 Advanced Usage
 
-### API Errors
-- Ensure your API key is valid
-- Check rate limits
-- Verify the model name is correct
+### Custom Datasets
 
-## 🚀 Tips for Best Results
+To add a new dataset:
 
-1. **Start Simple**: Begin with a clear, working prompt
-2. **Clear Output Format**: Specify exactly what output you expect
-3. **Appropriate Samples**: More samples = better evaluation but slower
+1. Create initial prompt: `mydataset_prompt.txt`
+2. Create configuration: `mydataset_prompt_dataset.yaml`
+3. Run evolution: 
+   ```bash
+   ./run_evolution.sh mydataset_prompt.txt --iterations 50
+   # or directly:
+   python ../../openevolve-run.py mydataset_prompt.txt evaluator.py --config config.yaml
+   ```
+
+### Batch Evaluation
+
+Evaluate multiple configurations:
+
+```bash
+# Create a script to run multiple evaluations
+for dataset in ifeval hover hotpotqa; do
+    python evaluate_prompts.py --dataset $dataset --prompt-type evolved
+done
+```
+
+### Resume Evolution
+
+Continue from a checkpoint:
+
+```bash
+python ../../openevolve-run.py prompt.txt evaluator.py \
+  --config config_qwen3_evolution.yaml \
+  --checkpoint openevolve_output_qwen3_ifeval/checkpoints/checkpoint_30 \
+  --iterations 20
+```
+
+### Custom Templates
+
+The `templates/` directory contains customizable templates for prompt evolution:
+- `full_rewrite_user.txt`: Instructions for prompt rewriting
+- `evaluation.txt`: LLM feedback template
+- `evaluator_system_message.txt`: System message for evaluation
+
+## 📈 Tips for Best Results
+
+1. **Start Simple**: Begin with clear, working baseline prompts
+2. **Sufficient Samples**: Use at least 40 samples for Stage 2 evaluation
+3. **Monitor Progress**: Check `openevolve_output_*/logs/` for progress
 4. **Multiple Runs**: Evolution has randomness; try multiple runs
-5. **Monitor Progress**: Check intermediate best_program.txt files
+5. **Token Limits**: Ensure max_tokens accommodates prompt + response
+6. **Dataset Variety**: Test on multiple datasets to ensure generalization
 
-## 📚 Next Steps
+## 📚 References
 
-- Try different datasets and benchmarks
-- Experiment with different models
-- Adjust evolution parameters in config.yaml
-- Create task-specific evaluation metrics
+- [OpenEvolve Documentation](../../README.md)
+- [IFEval Paper](https://arxiv.org/abs/2311.07911)
+- [HoVer Dataset](https://hover-nlp.github.io/)
+- [HotpotQA Paper](https://arxiv.org/abs/1809.09600)
+- [GSM8K Dataset](https://github.com/openai/grade-school-math)
+- [DSPy Framework](https://github.com/stanfordnlp/dspy)
+- [OpenRouter API](https://openrouter.ai/docs)
 
 Happy prompt evolving! 🧬✨

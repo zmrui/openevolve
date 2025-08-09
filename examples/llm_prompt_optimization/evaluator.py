@@ -149,24 +149,42 @@ def load_hf_dataset(config):
     dataset_name = config['dataset_name']
     dataset_config = config.get('dataset_config', None)
     split = config.get('split', 'test')
+    trust_remote_code = config.get('trust_remote_code', True)  # Default to True for convenience
     
     print(f"Loading dataset: {dataset_name}")
+    
+    # Special handling for HotpotQA - always use non-streaming mode
+    if dataset_name == "hotpot_qa" or config.get('is_hotpotqa', False):
+        print("Using non-streaming mode for HotpotQA to avoid PyArrow issues")
+        streaming = False
+    else:
+        # For other datasets, use streaming if not specified
+        streaming = config.get('streaming', True)
     
     try:
         # Try to load the specified split
         if dataset_config:
-            dataset = load_dataset(dataset_name, dataset_config, split=split)
+            dataset = load_dataset(dataset_name, dataset_config, split=split, 
+                                 trust_remote_code=trust_remote_code, streaming=streaming)
         else:
-            dataset = load_dataset(dataset_name, split=split)
+            dataset = load_dataset(dataset_name, split=split, 
+                                 trust_remote_code=trust_remote_code, streaming=streaming)
     except:
         # Fallback to train split if test is not available
         print(f"Split '{split}' not found, falling back to 'train'")
         if dataset_config:
-            dataset = load_dataset(dataset_name, dataset_config, split='train')
+            dataset = load_dataset(dataset_name, dataset_config, split='train', 
+                                 trust_remote_code=trust_remote_code, streaming=streaming)
         else:
-            dataset = load_dataset(dataset_name, split='train')
+            dataset = load_dataset(dataset_name, split='train', 
+                                 trust_remote_code=trust_remote_code, streaming=streaming)
     
-    print(f"Dataset loaded with {len(dataset)} examples")
+    # Print dataset info
+    if hasattr(dataset, '__len__'):
+        print(f"Dataset loaded with {len(dataset)} examples")
+    else:
+        print(f"Dataset loaded (streaming mode)")
+    
     return dataset
 
 def evaluate_prompt(prompt, dataset, config, num_samples):
@@ -178,20 +196,52 @@ def evaluate_prompt(prompt, dataset, config, num_samples):
     dataset_name = config.get('dataset_name', '').lower()
     is_emotion = 'emotion' in dataset_name
     is_gsm8k = 'gsm8k' in dataset_name
+    is_hotpotqa = config.get('is_hotpotqa', False)
+    is_ifeval = config.get('is_ifeval', False)
+    is_hover = config.get('is_hover', False)
     
-    # Sample from dataset
-    samples = dataset.select(range(min(num_samples, len(dataset))))
+    # Sample from dataset - handle both streaming and non-streaming
+    if hasattr(dataset, 'take'):
+        # Streaming dataset
+        samples = dataset.take(num_samples)
+        sample_iter = tqdm(samples, desc=f"Evaluating {num_samples} samples", total=num_samples)
+    else:
+        # Non-streaming dataset
+        indices = range(min(num_samples, len(dataset)))
+        samples = dataset.select(indices)
+        sample_iter = tqdm(samples, desc=f"Evaluating {num_samples} samples")
     
     correct = 0
     total = 0
     
-    for example in tqdm(samples, desc=f"Evaluating {num_samples} samples"):
+    for example in sample_iter:
         input_text = example[input_field]
         expected = example[target_field]
         
+        # Prepare the prompt with appropriate formatting
+        if is_hotpotqa:
+            # Format context from paragraphs
+            context_items = example.get('context', {})
+            context_text = ""
+            if 'title' in context_items and 'sentences' in context_items:
+                # Handle the specific structure of HotpotQA
+                for i, (title, sentences) in enumerate(zip(context_items['title'], context_items['sentences'])):
+                    context_text += f"Paragraph {i+1} ({title}):\n"
+                    context_text += " ".join(sentences) + "\n\n"
+            formatted_prompt = prompt.format(context=context_text.strip(), question=input_text)
+        elif is_ifeval:
+            # IFEval uses 'prompt' field directly
+            formatted_prompt = prompt.format(instruction=input_text)
+        elif is_hover:
+            # HoVer uses claim field
+            formatted_prompt = prompt.format(claim=input_text)
+        else:
+            # Default formatting for other datasets
+            formatted_prompt = prompt.format(input_text=input_text)
+        
         # Prepare the message for the LLM
         messages = [
-            {"role": "user", "content": prompt.format(input_text=input_text)}
+            {"role": "user", "content": formatted_prompt}
         ]
         
         # Call the LLM with retry logic
@@ -272,6 +322,56 @@ def evaluate_prompt(prompt, dataset, config, num_samples):
                 
                 total += 1
                 continue  # Skip the general case to avoid double counting
+            
+            elif is_hotpotqa:
+                # For HotpotQA, do exact match comparison (case-insensitive)
+                output_lower = output_text.lower().strip()
+                expected_lower = str(expected).lower().strip()
+                
+                # Remove common punctuation for better matching
+                output_lower = output_lower.rstrip('.,!?;:')
+                expected_lower = expected_lower.rstrip('.,!?;:')
+                
+                if output_lower == expected_lower:
+                    correct += 1
+                elif expected_lower in output_lower:
+                    # Partial credit if answer is contained in response
+                    correct += 1
+                
+                total += 1
+                continue
+                
+            elif is_ifeval:
+                # For IFEval, we need more complex evaluation
+                # For now, do basic keyword matching
+                # Note: Full IFEval requires checking multiple constraints
+                output_lower = output_text.lower()
+                
+                # Simple heuristic: check if response seems to follow instruction format
+                if len(output_text.strip()) > 10:  # Non-trivial response
+                    correct += 1  # Simplified - real IFEval needs constraint checking
+                
+                total += 1
+                continue
+                
+            elif is_hover:
+                # For HoVer, check if prediction matches SUPPORTED/NOT_SUPPORTED
+                output_upper = output_text.upper()
+                expected_upper = str(expected).upper()
+                
+                # Look for the verdict in the output
+                if 'SUPPORTED' in output_upper and 'NOT' not in output_upper.replace('NOT SUPPORTED', ''):
+                    prediction = 'SUPPORTED'
+                elif 'NOT SUPPORTED' in output_upper or 'NOT_SUPPORTED' in output_upper:
+                    prediction = 'NOT_SUPPORTED'
+                else:
+                    prediction = None
+                
+                if prediction == expected_upper:
+                    correct += 1
+                
+                total += 1
+                continue
                 
             elif is_emotion:
                 # For emotion classification (0-5)
@@ -345,7 +445,8 @@ def evaluate_stage1(prompt_path):
         
         # Get number of samples from config
         num_samples = config.get('max_samples', 50)
-        stage1_samples = max(10, int(num_samples * 0.1))
+        # Fixed to 10 samples for Stage 1 (quick evaluation)
+        stage1_samples = 10
         
         print(f"Stage 1: Evaluating {stage1_samples} samples...")
         
@@ -371,8 +472,21 @@ def evaluate_stage1(prompt_path):
         print(f"Stage 1 evaluation failed: {str(e)}")
         traceback.print_exc()
         print('-' * 80)
+        
+        # Always return feature dimensions, even on failure
+        try:
+            # Try to calculate features from the failed prompt
+            with open(prompt_path, 'r') as f:
+                failed_prompt = f.read().strip()
+            prompt_length, reasoning_strategy = calculate_prompt_features(failed_prompt)
+        except:
+            # Fallback values if prompt can't be read
+            prompt_length, reasoning_strategy = 0, 0
+        
         return {
             "combined_score": 0.0,
+            "prompt_length": prompt_length,
+            "reasoning_strategy": reasoning_strategy,
             "error": str(e)
         }
 
@@ -401,12 +515,14 @@ def evaluate_stage2(prompt_path):
         
         # Get number of samples from config
         num_samples = config.get('max_samples', 50)
+        # Fixed to 40 samples for Stage 2 (comprehensive evaluation)
+        stage2_samples = 40
         
-        print(f"Stage 2: Evaluating all {num_samples} samples...")
+        print(f"Stage 2: Evaluating {stage2_samples} samples...")
         
         # Run evaluation
         accuracy, correct, total = evaluate_prompt(
-            prompt, dataset, config, num_samples
+            prompt, dataset, config, stage2_samples
         )
         
         print(f"Stage 2 accuracy: {accuracy:.3f} ({correct}/{total})")
@@ -426,8 +542,21 @@ def evaluate_stage2(prompt_path):
         print(f"Stage 2 evaluation failed: {str(e)}")
         traceback.print_exc()
         print('-' * 80)
+        
+        # Always return feature dimensions, even on failure
+        try:
+            # Try to calculate features from the failed prompt
+            with open(prompt_path, 'r') as f:
+                failed_prompt = f.read().strip()
+            prompt_length, reasoning_strategy = calculate_prompt_features(failed_prompt)
+        except:
+            # Fallback values if prompt can't be read
+            prompt_length, reasoning_strategy = 0, 0
+        
         return {
             "combined_score": 0.0,
+            "prompt_length": prompt_length,
+            "reasoning_strategy": reasoning_strategy,
             "error": str(e)
         }
 

@@ -35,6 +35,15 @@ def validate_packing(centers, radii):
         True if valid, False otherwise
     """
     n = centers.shape[0]
+    
+    # Check for NaN values
+    if np.isnan(centers).any():
+        print("NaN values detected in circle centers")
+        return False
+    
+    if np.isnan(radii).any():
+        print("NaN values detected in circle radii")
+        return False
 
     # Check if radii are nonnegative and not nan
     for i in range(n):
@@ -205,6 +214,17 @@ def evaluate(program_path):
             centers = np.array(centers)
         if not isinstance(radii, np.ndarray):
             radii = np.array(radii)
+            
+        # Check for NaN values before validation
+        if np.isnan(centers).any() or np.isnan(radii).any():
+            print("NaN values detected in solution")
+            return {
+                "sum_radii": 0.0,
+                "target_ratio": 0.0,
+                "validity": 0.0,
+                "eval_time": float(time.time() - start_time),
+                "combined_score": 0.0,
+            }
 
         # Validate solution
         valid = validate_packing(centers, radii)

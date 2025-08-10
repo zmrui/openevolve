@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import random
+import shutil
 import time
 import uuid
 from dataclasses import asdict, dataclass, field, fields
@@ -456,6 +457,9 @@ class ProgramDatabase:
         if not save_path:
             logger.warning("No database path specified, skipping save")
             return
+
+        # Perform artifact cleanup before saving
+        self._cleanup_old_artifacts(save_path)
 
         # create directory if it doesn't exist
         os.makedirs(save_path, exist_ok=True)
@@ -1944,6 +1948,46 @@ class ProgramDatabase:
         artifact_dir = os.path.join(base_path, program_id)
         os.makedirs(artifact_dir, exist_ok=True)
         return artifact_dir
+
+    def _cleanup_old_artifacts(self, checkpoint_path: str) -> None:
+        """
+        Remove artifact directories older than the configured retention period.
+
+        Args:
+            checkpoint_path: The path of the current checkpoint being saved, which
+                             contains the artifacts folder to be cleaned.
+        """
+        if not self.config.cleanup_old_artifacts:
+            return
+
+        artifacts_base_path = os.path.join(checkpoint_path, "artifacts")
+
+        if not os.path.isdir(artifacts_base_path):
+            return
+
+        now = time.time()
+        retention_seconds = self.config.artifact_retention_days * 24 * 60 * 60
+        deleted_count = 0
+
+        logger.debug(f"Starting artifact cleanup in {artifacts_base_path}...")
+
+        for dirname in os.listdir(artifacts_base_path):
+            dirpath = os.path.join(artifacts_base_path, dirname)
+            if os.path.isdir(dirpath):
+                try:
+                    dir_mod_time = os.path.getmtime(dirpath)
+                    if (now - dir_mod_time) > retention_seconds:
+                        shutil.rmtree(dirpath)
+                        deleted_count += 1
+                        logger.debug(f"Removed old artifact directory: {dirpath}")
+                except FileNotFoundError:
+                    # Can happen in race conditions; ignore.
+                    continue
+                except Exception as e:
+                    logger.error(f"Error removing artifact directory {dirpath}: {e}")
+
+        if deleted_count > 0:
+            logger.info(f"Cleaned up {deleted_count} old artifact directories.")
 
     def _write_artifact_file(self, artifact_dir: str, key: str, value: Union[str, bytes]) -> None:
         """Write an artifact to a file"""

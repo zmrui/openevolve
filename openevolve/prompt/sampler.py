@@ -172,7 +172,9 @@ class PromptSampler:
 
         # Check program length
         # Support both old and new parameter names for backward compatibility
-        threshold = self.config.suggest_simplification_after_chars or self.config.code_length_threshold
+        threshold = (
+            self.config.suggest_simplification_after_chars or self.config.code_length_threshold
+        )
         if threshold and len(current_program) > threshold:
             improvement_areas.append(
                 "Consider simplifying the code to improve readability and maintainability"
@@ -501,7 +503,11 @@ class PromptSampler:
         metadata = program.get("metadata", {})
         if "changes" in metadata:
             changes = metadata["changes"]
-            if isinstance(changes, str) and self.config.include_changes_under_chars and len(changes) < self.config.include_changes_under_chars:
+            if (
+                isinstance(changes, str)
+                and self.config.include_changes_under_chars
+                and len(changes) < self.config.include_changes_under_chars
+            ):
                 features.append(f"Modification: {changes}")
 
         # Analyze metrics for standout characteristics
@@ -523,9 +529,15 @@ class PromptSampler:
                 features.append("NumPy-based implementation")
             if "for" in code_lower and "while" in code_lower:
                 features.append("Mixed iteration strategies")
-            if self.config.concise_implementation_max_lines and len(code.split("\n")) <= self.config.concise_implementation_max_lines:
+            if (
+                self.config.concise_implementation_max_lines
+                and len(code.split("\n")) <= self.config.concise_implementation_max_lines
+            ):
                 features.append("Concise implementation")
-            elif self.config.comprehensive_implementation_min_lines and len(code.split("\n")) >= self.config.comprehensive_implementation_min_lines:
+            elif (
+                self.config.comprehensive_implementation_min_lines
+                and len(code.split("\n")) >= self.config.comprehensive_implementation_min_lines
+            ):
                 features.append("Comprehensive implementation")
 
         # Default if no specific features found

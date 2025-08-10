@@ -498,19 +498,22 @@ class TestProgramDatabase(unittest.TestCase):
         # It should still exist with the same ID (not a new migrant ID)
         still_exists = multi_db.get(original_id)
         self.assertIsNotNone(still_exists)
-        
+
         # Count new programs created by migration (identified by "_migrant_" pattern)
         new_migrant_ids = [pid for pid in multi_db.programs if "_migrant_" in pid]
-        
+
         # Each non-migrant program (2 of them) migrates to 2 adjacent islands
         # So we expect 2 * 2 = 4 new migrant programs
         # The already-marked migrant (test_prog_0) should NOT create any new copies
         self.assertEqual(len(new_migrant_ids), 4)
-        
+
         # Verify the already-migrant program didn't create new copies
         migrant_descendants = [pid for pid in new_migrant_ids if original_id in pid]
-        self.assertEqual(len(migrant_descendants), 0, 
-                        f"Program {original_id} should not have created migrant copies")
+        self.assertEqual(
+            len(migrant_descendants),
+            0,
+            f"Program {original_id} should not have created migrant copies",
+        )
 
     def test_empty_island_initialization_creates_copies(self):
         """Test that empty islands are initialized with copies, not shared references"""
@@ -531,7 +534,7 @@ class TestProgramDatabase(unittest.TestCase):
             metrics={"score": 0.9, "combined_score": 0.9},
         )
         multi_db.add(program, target_island=1)
-        
+
         # Make it the best program
         multi_db.best_program_id = "original_program"
 
@@ -543,12 +546,12 @@ class TestProgramDatabase(unittest.TestCase):
         self.assertNotEqual(sampled_parent.id, "original_program")
         self.assertEqual(sampled_parent.code, program.code)  # Same code
         self.assertEqual(sampled_parent.parent_id, "original_program")  # Parent is the original
-        
+
         # Check island membership
         self.assertIn("original_program", multi_db.islands[1])
         self.assertNotIn("original_program", multi_db.islands[0])
         self.assertIn(sampled_parent.id, multi_db.islands[0])
-        
+
         # Run validation - should not raise any errors
         multi_db._validate_migration_results()
 
@@ -619,20 +622,19 @@ class TestProgramDatabase(unittest.TestCase):
             # Increment generations to trigger migration
             for island in range(3):
                 multi_db.island_generations[island] += 1
-            
+
             # Migrate programs
             multi_db.migrate_programs()
-            
+
             # Validation should pass without warnings
             multi_db._validate_migration_results()
-            
+
             # Verify no program has exponential ID growth
             for program_id in multi_db.programs:
                 # Count occurrences of "migrant" in ID
                 migrant_count = program_id.count("migrant")
                 self.assertLessEqual(
-                    migrant_count, 1, 
-                    f"Program ID {program_id} has been migrated multiple times"
+                    migrant_count, 1, f"Program ID {program_id} has been migrated multiple times"
                 )
 
 

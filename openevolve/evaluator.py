@@ -194,18 +194,22 @@ class Evaluator:
                         weighted_value = value * self.config.llm_feedback_weight
                         eval_result.metrics[f"llm_{name}"] = weighted_value
                         llm_scores.append(value)  # Use unweighted value for average
-                    
+
                     # Add average of LLM metrics
                     if llm_scores:
                         llm_average = sum(llm_scores) / len(llm_scores)
-                        eval_result.metrics["llm_average"] = llm_average * self.config.llm_feedback_weight
-                        
+                        eval_result.metrics["llm_average"] = (
+                            llm_average * self.config.llm_feedback_weight
+                        )
+
                         # Recalculate combined_score if it exists
                         if "combined_score" in eval_result.metrics:
                             # Original combined_score is just accuracy
                             accuracy = eval_result.metrics["combined_score"]
                             # Combine with LLM average (70% accuracy, 30% LLM quality)
-                            eval_result.metrics["combined_score"] = accuracy * 0.7 + llm_average * 0.3
+                            eval_result.metrics["combined_score"] = (
+                                accuracy * 0.7 + llm_average * 0.3
+                            )
 
                 # Store artifacts if enabled and present
                 if (
@@ -659,7 +663,7 @@ class Evaluator:
     def _passes_threshold(self, metrics: Dict[str, float], threshold: float) -> bool:
         """
         Check if metrics pass a threshold
-        
+
         Uses 'combined_score' if available (for consistency with evolution),
         otherwise falls back to averaging all numeric metrics except 'error'
 

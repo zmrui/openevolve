@@ -249,7 +249,7 @@ class PromptSampler:
 
         for i, program in enumerate(reversed(selected_previous)):
             attempt_number = len(previous_programs) - i
-            changes = program.get("changes", "Unknown changes")
+            changes = program.get("metadata", {}).get("changes", "Unknown changes")
 
             # Format performance metrics using safe formatting
             performance_parts = []
@@ -264,7 +264,7 @@ class PromptSampler:
             performance_str = ", ".join(performance_parts)
 
             # Determine outcome based on comparison with parent (only numeric metrics)
-            parent_metrics = program.get("parent_metrics", {})
+            parent_metrics = program.get("metadata", {}).get("parent_metrics", {})
             outcome = "Mixed results"
 
             # Safely compare only numeric metrics

@@ -41,10 +41,10 @@ class Evaluator:
         self,
         config: EvaluatorConfig,
         evaluation_file: str,
-        suffix: str,
         llm_ensemble: Optional[LLMEnsemble] = None,
         prompt_sampler: Optional[PromptSampler] = None,
         database: Optional[ProgramDatabase] = None,
+        suffix: Optional[str]=".py",
     ):
         self.config = config
         self.evaluation_file = evaluation_file

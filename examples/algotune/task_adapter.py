@@ -616,7 +616,7 @@ def measure_baseline_performance(task_instance, problem, num_runs=3, warmup_runs
         for _ in range(num_runs):
             start_time = time.perf_counter()
             try:
-                result = task_instance.solve(problem)
+                result = run_with_timeout(task_instance.solve, args=(problem,), timeout_seconds=30)
                 end_time = time.perf_counter()
                 if result is not None:
                     elapsed_ms = (end_time - start_time) * 1000
@@ -745,7 +745,7 @@ def evaluate(program_path, config=None):
             config = {{
                 "algotune": {{
                     "num_trials": 5,
-                    "data_size": 5,
+                    "data_size": 500,
                     "timeout": 30,
                     "num_runs": 3,
                     "warmup_runs": 1
@@ -961,7 +961,7 @@ def evaluate_stage1(program_path, config=None):
             config = {{
                 "algotune": {{
                     "num_trials": 5,
-                    "data_size": 5,
+                    "data_size": 500,
                     "timeout": 30
                 }}
             }}
@@ -1166,7 +1166,7 @@ evaluator:
 # AlgoTune task-specific configuration
 algotune:
   num_trials: 5
-  data_size: 5
+  data_size: 500
   timeout: 30
   num_runs: 3
   warmup_runs: 1

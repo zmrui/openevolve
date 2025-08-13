@@ -243,6 +243,81 @@ class AlgoTuneTaskAdapter:
         
         return class_info
     
+    def _harmonize_solve_and_is_solution(self, solve_method: str, is_solution_method: str, task_name: str) -> tuple:
+        """
+        Harmonize the formats between solve() and is_solution() methods.
+        Fixes common mismatches like returning numpy arrays vs expecting lists.
+        
+        Args:
+            solve_method: The extracted solve method code
+            is_solution_method: The extracted is_solution method code
+            task_name: Name of the task for specific fixes
+            
+        Returns:
+            Tuple of (harmonized_solve_method, harmonized_is_solution_method)
+        """
+        import re
+        
+        # Fix common type checking issues in is_solution
+        harmonized_is_solution = is_solution_method
+        
+        # Replace strict list checking with flexible array/list checking
+        if 'isinstance(proposed_list, list)' in harmonized_is_solution:
+            harmonized_is_solution = harmonized_is_solution.replace(
+                'isinstance(proposed_list, list)',
+                'isinstance(proposed_list, (list, np.ndarray))'
+            )
+            
+        # Fix error messages to reflect the change
+        harmonized_is_solution = harmonized_is_solution.replace(
+            "'transformed_image' is not a list.",
+            "'transformed_image' is not a list or array."
+        )
+        
+        # Add conversion logic for arrays to lists where needed
+        if 'transformed_image' in harmonized_is_solution and task_name == 'affine_transform_2d':
+            # For affine_transform_2d, convert arrays to lists for validation
+            conversion_code = '''
+            # Convert numpy array to list if needed for validation
+            if isinstance(proposed_list, np.ndarray):
+                proposed_list = proposed_list.tolist()
+'''
+            # Insert conversion code after extracting proposed_list
+            pattern = r'(proposed_list = solution\["transformed_image"\])'
+            harmonized_is_solution = re.sub(
+                pattern, 
+                r'\1' + conversion_code,
+                harmonized_is_solution
+            )
+        
+        # Add similar fixes for other common patterns
+        # Handle empty array checks
+        if 'if proposed_list == []' in harmonized_is_solution:
+            harmonized_is_solution = harmonized_is_solution.replace(
+                'if proposed_list == []',
+                'if (isinstance(proposed_list, list) and proposed_list == []) or (isinstance(proposed_list, np.ndarray) and proposed_list.size == 0)'
+            )
+            
+        # Fix numpy array shape mismatch issues
+        if 'operands could not be broadcast' in task_name or task_name == 'affine_transform_2d':
+            # Add proper array handling
+            array_handling = '''
+            # Ensure arrays are properly formatted
+            if isinstance(proposed_list, np.ndarray):
+                if proposed_list.size == 0:
+                    proposed_list = []
+                else:
+                    proposed_list = proposed_list.tolist()
+'''
+            # Insert after variable extraction
+            if 'proposed_list = solution["transformed_image"]' in harmonized_is_solution:
+                harmonized_is_solution = harmonized_is_solution.replace(
+                    'proposed_list = solution["transformed_image"]',
+                    'proposed_list = solution["transformed_image"]' + array_handling
+                )
+        
+        return solve_method, harmonized_is_solution
+    
     def _clean_init_method(self, init_method: str) -> str:
         """
         Clean up extracted __init__ method body by removing docstrings and super() calls.
@@ -363,6 +438,12 @@ class AlgoTuneTaskAdapter:
             # Placeholder validation - always returns True
             # This should be replaced with actual validation logic
             return True'''
+        
+        # Harmonize solve and is_solution methods to fix format mismatches
+        if solve_method and is_solution_method:
+            method_body, is_solution_method_body = self._harmonize_solve_and_is_solution(
+                method_body, is_solution_method_body, task_name
+            )
         
         # Clean the description for use in docstring
         import re

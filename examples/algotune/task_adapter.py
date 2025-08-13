@@ -960,10 +960,11 @@ def evaluate_stage2(program_path, config=None):
         # Replace LaTeX commands with their command names
         clean_description = re.sub(r'\\(\w+)(?:\{[^}]*\})?', replace_latex_command, clean_description)
         
-        # Handle YAML escape sequences properly
+        # Handle YAML escape sequences properly - but keep newlines for block scalar
         clean_description = clean_description.replace('\\', '\\\\')
         clean_description = clean_description.replace('"', '\\"')
-        clean_description = clean_description.replace('\n', '\\n')
+        # Don't escape newlines - we'll use block scalar syntax
+        # clean_description = clean_description.replace('\n', '\\n')
         clean_description = clean_description.replace('\t', '\\t')
         clean_description = clean_description.replace('\r', '\\r')
         
@@ -992,16 +993,16 @@ def evaluate_stage2(program_path, config=None):
                 # If no good word boundary, truncate and ensure we don't break escape sequences
                 clean_description = truncated.rstrip('\\') + "..."
         
-        # Insert the new system prompt before the task description
+        # Insert the new system prompt before the task description - properly indented for block scalar
         system_prompt = (
-            "SETTING:\n"
-            "You're an autonomous programmer tasked with solving a specific problem. You are to use the commands defined below to accomplish this task. Every message you send incurs a cost—you will be informed of your usage and remaining budget by the system.\n"
-            "You will be evaluated based on the best-performing piece of code you produce, even if the final code doesn't work or compile (as long as it worked at some point and achieved a score, you will be eligible).\n"
-            "Apart from the default Python packages, you have access to the following additional packages:\n"
-            " - cryptography\n - cvxpy\n - cython\n - dace\n - dask\n - diffrax\n - ecos\n - faiss-cpu\n - hdbscan\n - highspy\n - jax\n - networkx\n - numba\n - numpy\n - ortools\n - pandas\n - pot\n - psutil\n - pulp\n - pyomo\n - python-sat\n - pythran\n - scikit-learn\n - scipy\n - sympy\n - torch\n"
-            "Your primary objective is to optimize the `solve` function to run as as fast as possible, while returning the optimal solution.\n"
-            "You will receive better scores the quicker your solution runs, and you will be penalized for exceeding the time limit or returning non-optimal solutions.\n\n"
-            "Below you find the description of the task you will have to solve. Read it carefully and understand what the problem is and what your solver should do.\n\n"
+            "    SETTING:\n"
+            "    You're an autonomous programmer tasked with solving a specific problem. You are to use the commands defined below to accomplish this task. Every message you send incurs a cost—you will be informed of your usage and remaining budget by the system.\n"
+            "    You will be evaluated based on the best-performing piece of code you produce, even if the final code doesn't work or compile (as long as it worked at some point and achieved a score, you will be eligible).\n"
+            "    Apart from the default Python packages, you have access to the following additional packages:\n"
+            "     - cryptography\n     - cvxpy\n     - cython\n     - dace\n     - dask\n     - diffrax\n     - ecos\n     - faiss-cpu\n     - hdbscan\n     - highspy\n     - jax\n     - networkx\n     - numba\n     - numpy\n     - ortools\n     - pandas\n     - pot\n     - psutil\n     - pulp\n     - pyomo\n     - python-sat\n     - pythran\n     - scikit-learn\n     - scipy\n     - sympy\n     - torch\n"
+            "    Your primary objective is to optimize the `solve` function to run as as fast as possible, while returning the optimal solution.\n"
+            "    You will receive better scores the quicker your solution runs, and you will be penalized for exceeding the time limit or returning non-optimal solutions.\n\n"
+            "    Below you find the description of the task you will have to solve. Read it carefully and understand what the problem is and what your solver should do.\n\n"
         )
         config = f'''# Configuration for {task_name} task with baseline comparison
 max_iterations: 100
@@ -1021,7 +1022,13 @@ llm:
 
 # Prompt configuration
 prompt:
-  system_message: "{system_prompt}You are an expert programmer specializing in {category} algorithms. Your task is to improve the {task_name} algorithm implementation with baseline comparison. The problem description is: {clean_description}. Focus on improving the solve method to correctly handle the input format and produce valid solutions efficiently. Your solution will be compared against the reference AlgoTune baseline implementation to measure speedup and correctness."
+  system_message: |
+{system_prompt}    You are an expert programmer specializing in {category} algorithms. Your task is to improve the {task_name} algorithm implementation with baseline comparison.
+    
+    The problem description is:
+    {clean_description}
+    
+    Focus on improving the solve method to correctly handle the input format and produce valid solutions efficiently. Your solution will be compared against the reference AlgoTune baseline implementation to measure speedup and correctness.
   num_top_programs: 3
   use_template_stochasticity: true
 

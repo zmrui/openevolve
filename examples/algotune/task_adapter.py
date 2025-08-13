@@ -1161,7 +1161,7 @@ evaluator:
   cascade_thresholds: [0.5, 0.8]
   
   # Parallel evaluations
-  parallel_evaluations: 4
+  parallel_evaluations: 1
 
 # AlgoTune task-specific configuration
 algotune:

@@ -745,7 +745,7 @@ def evaluate(program_path, config=None):
             config = {{
                 "algotune": {{
                     "num_trials": 5,
-                    "data_size": 500,
+                    "data_size": 100,
                     "timeout": 30,
                     "num_runs": 3,
                     "warmup_runs": 1
@@ -961,7 +961,7 @@ def evaluate_stage1(program_path, config=None):
             config = {{
                 "algotune": {{
                     "num_trials": 5,
-                    "data_size": 500,
+                    "data_size": 100,
                     "timeout": 30
                 }}
             }}
@@ -1166,7 +1166,7 @@ evaluator:
 # AlgoTune task-specific configuration
 algotune:
   num_trials: 5
-  data_size: 500
+  data_size: 100
   timeout: 30
   num_runs: 3
   warmup_runs: 1

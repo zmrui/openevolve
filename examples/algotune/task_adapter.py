@@ -118,6 +118,7 @@ class AlgoTuneTaskAdapter:
         class_info = {
             'name': None,
             'solve_method': None,
+            'init_method': None,
             'generate_problem_method': None,
             'is_solution_method': None,
             'imports': [],
@@ -171,7 +172,7 @@ class AlgoTuneTaskAdapter:
                     
                     # Find the solve method using AST
                     for item in node.body:
-                        if isinstance(item, ast.FunctionDef) and item.name == 'solve':
+                        if isinstance(item, ast.FunctionDef) and item.name in ['solve', '__init__']:
                             try:
                                 # Get the source lines for this method
                                 method_start = item.lineno - 1  # Convert to 0-based index
@@ -219,13 +220,20 @@ class AlgoTuneTaskAdapter:
                                                 fixed_lines.append('')
                                         body_lines = fixed_lines
                                 if body_lines:
-                                    class_info['solve_method'] = '\n'.join(body_lines)
+                                    if item.name == 'solve':
+                                        class_info['solve_method'] = '\n'.join(body_lines)
+                                    elif item.name == '__init__':
+                                        class_info['init_method'] = '\n'.join(body_lines)
                                 else:
-                                    class_info['solve_method'] = '            # Placeholder for solve method\n            pass'
+                                    if item.name == 'solve':
+                                        class_info['solve_method'] = '            # Placeholder for solve method\n            pass'
+                                    elif item.name == '__init__':
+                                        class_info['init_method'] = '            # Placeholder for __init__ method\n            pass'
                             except Exception as e:
-                                class_info['solve_method'] = '            # Placeholder for solve method\n            pass'
-                            break
-                    break
+                                if item.name == 'solve':
+                                    class_info['solve_method'] = '            # Placeholder for solve method\n            pass'
+                                elif item.name == '__init__':
+                                    class_info['init_method'] = '            # Placeholder for __init__ method\n            pass'
         
         return class_info
     
@@ -287,6 +295,15 @@ class AlgoTuneTaskAdapter:
             # Fallback to task-specific method if extraction failed
             method_body = self._generate_task_specific_method(task_name, solve_method, class_info)
         
+        # Use the actual __init__ method from the original task
+        init_method = class_info['init_method']
+        if init_method:
+            # The method body is already properly indented from extraction
+            init_method_body = init_method
+        else:
+            # Fallback to simple pass if extraction failed
+            init_method_body = '        pass'
+        
         # Clean the description for use in docstring
         import re
         docstring_description = description.replace('\\', '\\\\')
@@ -320,7 +337,7 @@ class {class_info['name']}:
     
     def __init__(self):
         """Initialize the {class_info['name']}."""
-        pass
+{init_method_body}
     
     def solve(self, problem):
         """

@@ -132,8 +132,12 @@ def run_openevolve_task(
     evaluator = task_dir / "evaluator.py"
     config = Path(custom_config) if custom_config else (task_dir / "config.yaml")
     
+    # Get the project root (parent of examples/algotune)
+    project_root = Path(__file__).parent.parent.parent
+    openevolve_script = project_root / "openevolve-run.py"
+    
     cmd = [
-        sys.executable, "openevolve-run.py",
+        sys.executable, str(openevolve_script),
         str(initial_program),
         str(evaluator),
         "--config", str(config),
@@ -147,7 +151,7 @@ def run_openevolve_task(
         # Run OpenEvolve
         result = subprocess.run(
             cmd,
-            cwd=Path.cwd(),  # Run from project root
+            cwd=task_dir,  # Run from task directory
             capture_output=True,
             text=True,
             timeout=timeout

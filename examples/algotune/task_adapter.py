@@ -827,7 +827,7 @@ def evaluate(program_path, config=None):
                 "algotune": {{
                     "num_trials": 5,
                     "data_size": 100,
-                    "timeout": 30,
+                    "timeout": 3000,
                     "num_runs": 3,
                     "warmup_runs": 1
                 }}
@@ -837,7 +837,7 @@ def evaluate(program_path, config=None):
         algotune_config = config.get("algotune", {{}})
         num_trials = algotune_config.get("num_trials", 5)
         data_size = algotune_config.get("data_size", 5)
-        timeout_seconds = algotune_config.get("timeout", 30)
+        timeout_seconds = algotune_config.get("timeout", 300)
         num_runs = algotune_config.get("num_runs", 3)
         warmup_runs = algotune_config.get("warmup_runs", 1)
         
@@ -1043,13 +1043,13 @@ def evaluate_stage1(program_path, config=None):
                 "algotune": {{
                     "num_trials": 5,
                     "data_size": 100,
-                    "timeout": 30
+                    "timeout": 300
                 }}
             }}
         
         algotune_config = config.get("algotune", {{}})
         data_size = algotune_config.get("data_size", 5)
-        timeout_seconds = algotune_config.get("timeout", 30)
+        timeout_seconds = algotune_config.get("timeout", 300)
         
         # Load the program
         spec = importlib.util.spec_from_file_location("program", program_path)
@@ -1248,7 +1248,7 @@ evaluator:
 algotune:
   num_trials: 5
   data_size: 100
-  timeout: 30
+  timeout: 300
   num_runs: 3
   warmup_runs: 1
 '''

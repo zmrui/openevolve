@@ -237,6 +237,48 @@ class AlgoTuneTaskAdapter:
         
         return class_info
     
+    def _clean_init_method(self, init_method: str) -> str:
+        """
+        Clean up extracted __init__ method body by removing docstrings and super() calls.
+        Keep only the actual initialization statements.
+        """
+        lines = init_method.split('\n')
+        cleaned_lines = []
+        in_docstring = False
+        
+        for line in lines:
+            stripped = line.strip()
+            
+            # Skip docstring lines
+            if '"""' in line:
+                if in_docstring:
+                    in_docstring = False
+                    continue
+                else:
+                    in_docstring = True
+                    continue
+            
+            if in_docstring:
+                continue
+            
+            # Skip super() calls
+            if 'super().__init__' in line or 'super().__init__' in line:
+                continue
+            
+            # Skip empty lines
+            if not stripped:
+                continue
+            
+            # Keep actual initialization statements (assignments to self.*)
+            if stripped.startswith('self.') or '=' in stripped:
+                # Ensure proper indentation (8 spaces for method body)
+                cleaned_lines.append('        ' + stripped)
+        
+        if cleaned_lines:
+            return '\n'.join(cleaned_lines)
+        else:
+            return '        pass'
+    
     def _generate_initial_program(self, task_name: str) -> str:
         """Generate the initial program for OpenEvolve based on the actual task implementation."""
         task_info = self.available_tasks[task_name]
@@ -298,8 +340,8 @@ class AlgoTuneTaskAdapter:
         # Use the actual __init__ method from the original task
         init_method = class_info['init_method']
         if init_method:
-            # The method body is already properly indented from extraction
-            init_method_body = init_method
+            # Clean up the extracted __init__ method
+            init_method_body = self._clean_init_method(init_method)
         else:
             # Fallback to simple pass if extraction failed
             init_method_body = '        pass'

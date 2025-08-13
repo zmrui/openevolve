@@ -44,9 +44,11 @@ class Evaluator:
         llm_ensemble: Optional[LLMEnsemble] = None,
         prompt_sampler: Optional[PromptSampler] = None,
         database: Optional[ProgramDatabase] = None,
+        suffix: Optional[str]=".py",
     ):
         self.config = config
         self.evaluation_file = evaluation_file
+        self.program_suffix = suffix
         self.llm_ensemble = llm_ensemble
         self.prompt_sampler = prompt_sampler
         self.database = database
@@ -152,7 +154,7 @@ class Evaluator:
         last_exception = None
         for attempt in range(self.config.max_retries + 1):
             # Create a temporary file for the program
-            with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as temp_file:
+            with tempfile.NamedTemporaryFile(suffix=self.program_suffix, delete=False) as temp_file:
                 temp_file.write(program_code.encode("utf-8"))
                 temp_file_path = temp_file.name
 
@@ -189,8 +191,27 @@ class Evaluator:
                     llm_eval_result = self._process_evaluation_result(llm_result)
 
                     # Combine metrics
+                    llm_scores = []
                     for name, value in llm_result.metrics.items():
-                        eval_result.metrics[f"llm_{name}"] = value * self.config.llm_feedback_weight
+                        weighted_value = value * self.config.llm_feedback_weight
+                        eval_result.metrics[f"llm_{name}"] = weighted_value
+                        llm_scores.append(value)  # Use unweighted value for average
+
+                    # Add average of LLM metrics
+                    if llm_scores:
+                        llm_average = sum(llm_scores) / len(llm_scores)
+                        eval_result.metrics["llm_average"] = (
+                            llm_average * self.config.llm_feedback_weight
+                        )
+
+                        # Recalculate combined_score if it exists
+                        if "combined_score" in eval_result.metrics:
+                            # Original combined_score is just accuracy
+                            accuracy = eval_result.metrics["combined_score"]
+                            # Combine with LLM average (70% accuracy, 30% LLM quality)
+                            eval_result.metrics["combined_score"] = (
+                                accuracy * 0.7 + llm_average * 0.3
+                            )
 
                 # Store artifacts if enabled and present
                 if (
@@ -644,7 +665,7 @@ class Evaluator:
     def _passes_threshold(self, metrics: Dict[str, float], threshold: float) -> bool:
         """
         Check if metrics pass a threshold
-        
+
         Uses 'combined_score' if available (for consistency with evolution),
         otherwise falls back to averaging all numeric metrics except 'error'
 

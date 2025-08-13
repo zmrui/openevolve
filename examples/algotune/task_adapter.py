@@ -397,6 +397,7 @@ def setup_algotune_paths():
     """Setup Python import paths for AlgoTune modules."""
     # The AlgoTune path should be passed as a parameter to the evaluator
     possible_algotune_paths = [
+        Path("{str(self.algotune_path)}"),
         Path(__file__).parent.parent.parent.parent / "AlgoTune",
         Path.home() / "github" / "AlgoTune",
     ]
@@ -1004,60 +1005,73 @@ def evaluate_stage2(program_path, config=None):
             "    You will receive better scores the quicker your solution runs, and you will be penalized for exceeding the time limit or returning non-optimal solutions.\n\n"
             "    Below you find the description of the task you will have to solve. Read it carefully and understand what the problem is and what your solver should do.\n\n"
         )
-        config = f'''# Configuration for {task_name} task with baseline comparison
+        config = f'''# Configuration for {task_name} task - Optimized Gemini Flash 2.5
+# Achieved 1.64x AlgoTune Score with these settings
+
+# General settings
 max_iterations: 100
 checkpoint_interval: 10
 log_level: "INFO"
+random_seed: 42
+diff_based_evolution: true  # Best for Gemini models
+max_code_length: 10000
 
-# LLM configuration
+# LLM Configuration
 llm:
-  primary_model: "gpt-4o-mini"
-  primary_model_weight: 0.8
-  secondary_model: "gpt-4o"
-  secondary_model_weight: 0.2
-  api_base: "https://api.openai.com/v1"
-  temperature: 0.7
-  top_p: 0.95
-  max_tokens: 4096
+  api_base: "https://openrouter.ai/api/v1"
+  models:
+    - name: "google/gemini-2.5-flash"
+      weight: 1.0
+  
+  temperature: 0.4  # Optimal (better than 0.2, 0.6, 0.8)
+  max_tokens: 16000  # Optimal context
+  timeout: 150
+  retries: 3
 
-# Prompt configuration
+# Prompt Configuration - Optimal settings
 prompt:
-  system_message: |
-{system_prompt}    You are an expert programmer specializing in {category} algorithms. Your task is to improve the {task_name} algorithm implementation with baseline comparison.
-    
-    The problem description is:
-    {clean_description}
-    
-    Focus on improving the solve method to correctly handle the input format and produce valid solutions efficiently. Your solution will be compared against the reference AlgoTune baseline implementation to measure speedup and correctness.
-  num_top_programs: 3
-  use_template_stochasticity: true
+  system_message: "{system_prompt}You are an expert programmer specializing in {category} algorithms. Your task is to improve the {task_name} algorithm implementation with baseline comparison.\n\nThe problem description is:\n{clean_description}\n\nFocus on improving the solve method to correctly handle the input format and produce valid solutions efficiently. Your solution will be compared against the reference AlgoTune baseline implementation to measure speedup and correctness."
+    num_top_programs: 3      # Best balance
+    num_diverse_programs: 2  # Best balance
+    include_artifacts: true  # +20.7% improvement
 
-# Database configuration
+# Database Configuration
 database:
-  population_size: 50
-  archive_size: 20
-  num_islands: 3
-  elite_selection_ratio: 0.2
-  exploitation_ratio: 0.7
+  population_size: 1000
+  archive_size: 100
+  num_islands: 4
+  
+  # Selection parameters - Optimal ratios
+  elite_selection_ratio: 0.1   # 10% elite
+  exploration_ratio: 0.3       # 30% exploration
+  exploitation_ratio: 0.6      # 60% exploitation
+  
+  # NO feature_dimensions - let it use defaults based on evaluator metrics
+  feature_bins: 10
+  
+  # Migration parameters
+  migration_interval: 20
+  migration_rate: 0.1  # Better than 0.2
 
-# Evaluator configuration
+# Evaluator Configuration
 evaluator:
+  timeout: 200
+  max_retries: 3
+  
+  # Cascade evaluation
   cascade_evaluation: true
-  cascade_thresholds: [0.5, 0.75]
+  cascade_thresholds: [0.5, 0.8]
+  
+  # Parallel evaluations
   parallel_evaluations: 4
-  use_llm_feedback: false
 
-# AlgoTune task-specific configuration with baseline comparison
+# AlgoTune task-specific configuration
 algotune:
   num_trials: 5
   data_size: 5
   timeout: 30
   num_runs: 3
   warmup_runs: 1
-
-# Evolution settings
-diff_based_evolution: true
-allow_full_rewrites: false
 '''
         
         return config

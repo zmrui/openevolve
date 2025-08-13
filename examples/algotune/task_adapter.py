@@ -170,9 +170,9 @@ class AlgoTuneTaskAdapter:
                     # Extract the entire class code
                     class_info['class_code'] = ast.unparse(node)
                     
-                    # Find the solve method using AST
+                    # Find the solve, __init__, and is_solution methods using AST
                     for item in node.body:
-                        if isinstance(item, ast.FunctionDef) and item.name in ['solve', '__init__']:
+                        if isinstance(item, ast.FunctionDef) and item.name in ['solve', '__init__', 'is_solution']:
                             try:
                                 # Get the source lines for this method
                                 method_start = item.lineno - 1  # Convert to 0-based index
@@ -224,16 +224,22 @@ class AlgoTuneTaskAdapter:
                                         class_info['solve_method'] = '\n'.join(body_lines)
                                     elif item.name == '__init__':
                                         class_info['init_method'] = '\n'.join(body_lines)
+                                    elif item.name == 'is_solution':
+                                        class_info['is_solution_method'] = '\n'.join(body_lines)
                                 else:
                                     if item.name == 'solve':
                                         class_info['solve_method'] = '            # Placeholder for solve method\n            pass'
                                     elif item.name == '__init__':
                                         class_info['init_method'] = '            # Placeholder for __init__ method\n            pass'
+                                    elif item.name == 'is_solution':
+                                        class_info['is_solution_method'] = '            # Placeholder for is_solution method\n            pass'
                             except Exception as e:
                                 if item.name == 'solve':
                                     class_info['solve_method'] = '            # Placeholder for solve method\n            pass'
                                 elif item.name == '__init__':
                                     class_info['init_method'] = '            # Placeholder for __init__ method\n            pass'
+                                elif item.name == 'is_solution':
+                                    class_info['is_solution_method'] = '            # Placeholder for is_solution method\n            pass'
         
         return class_info
     
@@ -346,6 +352,18 @@ class AlgoTuneTaskAdapter:
             # Fallback to simple pass if extraction failed
             init_method_body = '        pass'
         
+        # Use the actual is_solution method from the original task
+        is_solution_method = class_info['is_solution_method']
+        if is_solution_method:
+            # The method body is already properly indented from extraction
+            is_solution_method_body = is_solution_method
+        else:
+            # Fallback method if extraction failed
+            is_solution_method_body = '''            """Check if the provided solution is valid."""
+            # Placeholder validation - always returns True
+            # This should be replaced with actual validation logic
+            return True'''
+        
         # Clean the description for use in docstring
         import re
         docstring_description = description.replace('\\', '\\\\')
@@ -397,6 +415,24 @@ class {class_info['name']}:
         except Exception as e:
             logging.error(f"Error in solve method: {{e}}")
             raise e
+    
+    def is_solution(self, problem, solution):
+        """
+        Check if the provided solution is valid.
+        
+        Args:
+            problem: The original problem
+            solution: The proposed solution
+                   
+        Returns:
+            True if the solution is valid, False otherwise
+        """
+        try:
+{is_solution_method_body}
+            
+        except Exception as e:
+            logging.error(f"Error in is_solution method: {{e}}")
+            return False
 
 def run_solver(problem):
     """
@@ -804,10 +840,13 @@ def evaluate(program_path, config=None):
                     evolved_solution = safe_convert(evolved_solution)
                     
                     try:
-                        is_valid = task_instance.is_solution(problem, evolved_solution)
+                        # Use the evolved program's own is_solution method for validation
+                        # This ensures consistency between the extracted solve and validation logic
+                        evolved_solver = program.{class_info['name']}()
+                        is_valid = evolved_solver.is_solution(problem, evolved_solution)
                         correctness_score = 1.0 if is_valid else 0.0
                     except Exception as e:
-                        print(f"Trial {{trial}}: Error checking solution validity: {{e}}")
+                        print(f"Trial {{trial}}: Error checking solution validity with evolved is_solution: {{e}}")
                         correctness_score = 0.0
                         is_valid = False
 

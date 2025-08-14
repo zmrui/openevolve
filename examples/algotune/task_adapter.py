@@ -1209,7 +1209,13 @@ llm:
 
 # Prompt Configuration - Optimal settings
 prompt:
-  system_message: "{system_prompt}You are an expert programmer specializing in {category} algorithms. Your task is to improve the {task_name} algorithm implementation with baseline comparison.\n\nThe problem description is:\n{clean_description}\n\nFocus on improving the solve method to correctly handle the input format and produce valid solutions efficiently. Your solution will be compared against the reference AlgoTune baseline implementation to measure speedup and correctness."
+  system_message: |
+    {system_prompt}You are an expert programmer specializing in {category} algorithms. Your task is to improve the {task_name} algorithm implementation with baseline comparison.
+
+    The problem description is:
+    {clean_description}
+
+    Focus on improving the solve method to correctly handle the input format and produce valid solutions efficiently. Your solution will be compared against the reference AlgoTune baseline implementation to measure speedup and correctness.
   num_top_programs: 3      # Best balance
   num_diverse_programs: 2  # Best balance
   include_artifacts: true  # +20.7% improvement

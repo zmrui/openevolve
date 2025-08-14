@@ -290,6 +290,16 @@ class AlgoTuneTaskAdapter:
                 harmonized_is_solution
             )
         
+        # Fix fft_convolution to return list format instead of numpy array
+        if task_name == 'fft_convolution':
+            # Ensure the solve method returns list format
+            if 'convolution_result = signal.fftconvolve' in solve_method:
+                # Replace the solution return to ensure list format
+                solve_method = solve_method.replace(
+                    'solution = {"convolution": convolution_result}',
+                    'solution = {"convolution": convolution_result.tolist()}'
+                )
+        
         # Add similar fixes for other common patterns
         # Handle empty array checks
         if 'if proposed_list == []' in harmonized_is_solution:
@@ -823,20 +833,32 @@ def evaluate(program_path, config=None):
     try:
         # Load configuration
         if config is None:
-            config = {{
-                "algotune": {{
-                    "num_trials": 5,
-                    "data_size": 100,
-                    "timeout": 3000,
-                    "num_runs": 3,
-                    "warmup_runs": 1
+            # Try to load config from YAML file first
+            try:
+                import yaml
+                from pathlib import Path
+                config_path = Path(__file__).parent / "config.yaml"
+                if config_path.exists():
+                    with open(config_path, 'r') as f:
+                        config = yaml.safe_load(f)
+                else:
+                    raise FileNotFoundError("config.yaml not found")
+            except Exception as e:
+                # Could not load config.yaml, using defaults
+                config = {{
+                    "algotune": {{
+                        "num_trials": 5,
+                        "data_size": 100,
+                        "timeout": 300,
+                        "num_runs": 3,
+                        "warmup_runs": 1
+                    }}
                 }}
-            }}
         
         # Extract AlgoTune task-specific settings from config
         algotune_config = config.get("algotune", {{}})
         num_trials = algotune_config.get("num_trials", 5)
-        data_size = algotune_config.get("data_size", 5)
+        data_size = algotune_config.get("data_size", 100)
         timeout_seconds = algotune_config.get("timeout", 300)
         num_runs = algotune_config.get("num_runs", 3)
         warmup_runs = algotune_config.get("warmup_runs", 1)
@@ -1039,16 +1061,28 @@ def evaluate_stage1(program_path, config=None):
     try:
         # Load configuration
         if config is None:
-            config = {{
-                "algotune": {{
-                    "num_trials": 5,
-                    "data_size": 100,
-                    "timeout": 300
+            # Try to load config from YAML file first
+            try:
+                import yaml
+                from pathlib import Path
+                config_path = Path(__file__).parent / "config.yaml"
+                if config_path.exists():
+                    with open(config_path, 'r') as f:
+                        config = yaml.safe_load(f)
+                else:
+                    raise FileNotFoundError("config.yaml not found")
+            except Exception as e:
+                # Could not load config.yaml, using defaults
+                config = {{
+                    "algotune": {{
+                        "num_trials": 5,
+                        "data_size": 100,
+                        "timeout": 300
+                    }}
                 }}
-            }}
         
         algotune_config = config.get("algotune", {{}})
-        data_size = algotune_config.get("data_size", 5)
+        data_size = algotune_config.get("data_size", 100)
         timeout_seconds = algotune_config.get("timeout", 300)
         
         # Load the program
@@ -1184,6 +1218,10 @@ def evaluate_stage2(program_path, config=None):
             "    You will receive better scores the quicker your solution runs, and you will be penalized for exceeding the time limit or returning non-optimal solutions.\n\n"
             "    Below you find the description of the task you will have to solve. Read it carefully and understand what the problem is and what your solver should do.\n\n"
         )
+        
+        # Properly indent the description for YAML block scalar
+        indented_description = '\n'.join('    ' + line if line.strip() else '' 
+                                         for line in clean_description.split('\n'))
         config = f'''# Configuration for {task_name} task - Optimized Gemini Flash 2.5
 # Achieved 1.64x AlgoTune Score with these settings
 
@@ -1210,10 +1248,10 @@ llm:
 # Prompt Configuration - Optimal settings
 prompt:
   system_message: |
-    {system_prompt}You are an expert programmer specializing in {category} algorithms. Your task is to improve the {task_name} algorithm implementation with baseline comparison.
+{system_prompt}    You are an expert programmer specializing in {category} algorithms. Your task is to improve the {task_name} algorithm implementation with baseline comparison.
 
     The problem description is:
-    {clean_description}
+{indented_description}
 
     Focus on improving the solve method to correctly handle the input format and produce valid solutions efficiently. Your solution will be compared against the reference AlgoTune baseline implementation to measure speedup and correctness.
   num_top_programs: 3      # Best balance
@@ -1253,13 +1291,23 @@ evaluator:
 # AlgoTune task-specific configuration
 algotune:
   num_trials: 5
-  data_size: 100
+  data_size: {self._get_task_data_size(task_name)}
   timeout: 300
   num_runs: 3
   warmup_runs: 1
 '''
         
         return config
+    
+    def _get_task_data_size(self, task_name: str) -> int:
+        """Get task-specific data_size values."""
+        # Task-specific overrides for computational intensity
+        if task_name == "convolve2d_full_fill":
+            return 1  # Very computationally intensive due to 30*n × 30*n and 8*n × 8*n matrices
+        elif task_name == "fft_convolution":
+            return 10  # Moderate computational intensity
+        else:
+            return 100  # Default for all other tasks
     
     def _generate_task_specific_method(self, task_name: str, solve_method: str, class_info: Dict[str, Any]) -> str:
         """Generate a generic fallback method when the actual solve method cannot be extracted."""

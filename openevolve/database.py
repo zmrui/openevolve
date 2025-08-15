@@ -486,6 +486,7 @@ class ProgramDatabase:
             "current_island": self.current_island,
             "island_generations": self.island_generations,
             "last_migration_generation": self.last_migration_generation,
+            "feature_stats": self._serialize_feature_stats(),
         }
 
         with open(os.path.join(save_path, "metadata.json"), "w") as f:
@@ -522,8 +523,13 @@ class ProgramDatabase:
             self.current_island = metadata.get("current_island", 0)
             self.island_generations = metadata.get("island_generations", [0] * len(saved_islands))
             self.last_migration_generation = metadata.get("last_migration_generation", 0)
+            
+            # Load feature_stats for MAP-Elites grid stability
+            self.feature_stats = self._deserialize_feature_stats(metadata.get("feature_stats", {}))
 
             logger.info(f"Loaded database metadata with last_iteration={self.last_iteration}")
+            if self.feature_stats:
+                logger.info(f"Loaded feature_stats for {len(self.feature_stats)} dimensions")
 
         # Load programs
         programs_dir = os.path.join(path, "programs")
@@ -1814,6 +1820,62 @@ class ProgramDatabase:
 
         scaled = (value - min_val) / (max_val - min_val)
         return min(1.0, max(0.0, scaled))
+
+    def _serialize_feature_stats(self) -> Dict[str, Any]:
+        """
+        Serialize feature_stats for JSON storage
+        
+        Returns:
+            Dictionary that can be JSON-serialized
+        """
+        serialized = {}
+        for feature_name, stats in self.feature_stats.items():
+            # Convert to JSON-serializable format
+            serialized_stats = {}
+            for key, value in stats.items():
+                if key == "values":
+                    # Limit size to prevent excessive memory usage
+                    # Keep only the most recent 100 values for percentile calculations
+                    if isinstance(value, list) and len(value) > 100:
+                        serialized_stats[key] = value[-100:]
+                    else:
+                        serialized_stats[key] = value
+                else:
+                    # Convert numpy types to Python native types
+                    if hasattr(value, 'item'):  # numpy scalar
+                        serialized_stats[key] = value.item()
+                    else:
+                        serialized_stats[key] = value
+            serialized[feature_name] = serialized_stats
+        return serialized
+    
+    def _deserialize_feature_stats(self, stats_dict: Dict[str, Any]) -> Dict[str, Dict[str, Union[float, List[float]]]]:
+        """
+        Deserialize feature_stats from loaded JSON
+        
+        Args:
+            stats_dict: Dictionary loaded from JSON
+            
+        Returns:
+            Properly formatted feature_stats dictionary
+        """
+        if not stats_dict:
+            return {}
+            
+        deserialized = {}
+        for feature_name, stats in stats_dict.items():
+            if isinstance(stats, dict):
+                # Ensure proper structure and types
+                deserialized_stats = {
+                    "min": float(stats.get("min", 0.0)),
+                    "max": float(stats.get("max", 1.0)),
+                    "values": list(stats.get("values", [])),
+                }
+                deserialized[feature_name] = deserialized_stats
+            else:
+                logger.warning(f"Skipping malformed feature_stats entry for '{feature_name}': {stats}")
+        
+        return deserialized
 
     def log_island_status(self) -> None:
         """Log current status of all islands"""

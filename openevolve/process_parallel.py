@@ -268,8 +268,18 @@ class ProcessParallelController:
 
         # Number of worker processes
         self.num_workers = config.evaluator.parallel_evaluations
+        
+        # Worker-to-island pinning for true island isolation
+        self.num_islands = config.database.num_islands
+        self.worker_island_map = {}
+        
+        # Distribute workers across islands using modulo
+        for worker_id in range(self.num_workers):
+            island_id = worker_id % self.num_islands
+            self.worker_island_map[worker_id] = island_id
 
         logger.info(f"Initialized process parallel controller with {self.num_workers} workers")
+        logger.info(f"Worker-to-island mapping: {self.worker_island_map}")
 
     def _serialize_config(self, config: Config) -> dict:
         """Serialize config object to a dictionary that can be pickled"""
@@ -372,17 +382,26 @@ class ProcessParallelController:
             f"for {max_iterations} iterations (total: {total_iterations})"
         )
 
-        # Track pending futures
+        # Track pending futures by island to maintain distribution
         pending_futures: Dict[int, Future] = {}
+        island_pending: Dict[int, List[int]] = {i: [] for i in range(self.num_islands)}
         batch_size = min(self.num_workers * 2, max_iterations)
 
-        # Submit initial batch
-        for i in range(start_iteration, min(start_iteration + batch_size, total_iterations)):
-            future = self._submit_iteration(i)
-            if future:
-                pending_futures[i] = future
+        # Submit initial batch - distribute across islands
+        batch_per_island = max(1, batch_size // self.num_islands)
+        current_iteration = start_iteration
+        
+        # Round-robin distribution across islands
+        for island_id in range(self.num_islands):
+            for _ in range(batch_per_island):
+                if current_iteration < total_iterations:
+                    future = self._submit_iteration(current_iteration, island_id)
+                    if future:
+                        pending_futures[current_iteration] = future
+                        island_pending[island_id].append(current_iteration)
+                    current_iteration += 1
 
-        next_iteration = start_iteration + batch_size
+        next_iteration = current_iteration
         completed_iterations = 0
 
         # Island management
@@ -529,13 +548,24 @@ class ProcessParallelController:
                 logger.error(f"Error processing result from iteration {completed_iteration}: {e}")
 
             completed_iterations += 1
+            
+            # Remove completed iteration from island tracking
+            for island_id, iteration_list in island_pending.items():
+                if completed_iteration in iteration_list:
+                    iteration_list.remove(completed_iteration)
+                    break
 
-            # Submit next iteration
-            if next_iteration < total_iterations and not self.shutdown_event.is_set():
-                future = self._submit_iteration(next_iteration)
-                if future:
-                    pending_futures[next_iteration] = future
-                    next_iteration += 1
+            # Submit next iterations maintaining island balance
+            for island_id in range(self.num_islands):
+                if (len(island_pending[island_id]) < batch_per_island 
+                    and next_iteration < total_iterations 
+                    and not self.shutdown_event.is_set()):
+                    future = self._submit_iteration(next_iteration, island_id)
+                    if future:
+                        pending_futures[next_iteration] = future
+                        island_pending[island_id].append(next_iteration)
+                        next_iteration += 1
+                        break  # Only submit one iteration per completion to maintain balance
 
         # Handle shutdown
         if self.shutdown_event.is_set():
@@ -547,14 +577,26 @@ class ProcessParallelController:
 
         return self.database.get_best_program()
 
-    def _submit_iteration(self, iteration: int) -> Optional[Future]:
-        """Submit an iteration to the process pool"""
+    def _submit_iteration(self, iteration: int, island_id: Optional[int] = None) -> Optional[Future]:
+        """Submit an iteration to the process pool, optionally pinned to a specific island"""
         try:
-            # Sample parent and inspirations
-            parent, inspirations = self.database.sample()
+            # Use specified island or current island
+            target_island = island_id if island_id is not None else self.database.current_island
+            
+            # Temporarily set database to target island for sampling
+            original_island = self.database.current_island
+            self.database.current_island = target_island
+            
+            try:
+                # Sample parent and inspirations from the target island
+                parent, inspirations = self.database.sample()
+            finally:
+                # Always restore original island state
+                self.database.current_island = original_island
 
             # Create database snapshot
             db_snapshot = self._create_database_snapshot()
+            db_snapshot["sampling_island"] = target_island  # Mark which island this is for
 
             # Submit to process pool
             future = self.executor.submit(

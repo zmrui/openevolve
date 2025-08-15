@@ -388,7 +388,7 @@ class ProcessParallelController:
         batch_size = min(self.num_workers * 2, max_iterations)
 
         # Submit initial batch - distribute across islands
-        batch_per_island = max(1, batch_size // self.num_islands)
+        batch_per_island = max(1, batch_size // self.num_islands) if batch_size > 0 else 0
         current_iteration = start_iteration
         
         # Round-robin distribution across islands

@@ -186,7 +186,19 @@ class DatabaseConfig:
 
     # Feature map dimensions for MAP-Elites
     # Default to complexity and diversity for better exploration
-    feature_dimensions: List[str] = field(default_factory=lambda: ["complexity", "diversity"])
+    # CRITICAL: For custom dimensions, evaluators must return RAW VALUES, not bin indices
+    # Built-in: "complexity", "diversity", "score" (always available)
+    # Custom: Any metric from your evaluator (must be continuous values)
+    feature_dimensions: List[str] = field(
+        default_factory=lambda: ["complexity", "diversity"],
+        metadata={
+            "help": "List of feature dimensions for MAP-Elites grid. "
+                   "Built-in dimensions: 'complexity', 'diversity', 'score'. "
+                   "Custom dimensions: Must match metric names from evaluator. "
+                   "IMPORTANT: Evaluators must return raw continuous values for custom dimensions, "
+                   "NOT pre-computed bin indices. OpenEvolve handles all scaling and binning internally."
+        }
+    )
     feature_bins: Union[int, Dict[str, int]] = 10  # Can be int (all dims) or dict (per-dim)
     diversity_reference_size: int = 20  # Size of reference set for diversity calculation
 

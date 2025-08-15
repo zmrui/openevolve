@@ -133,6 +133,56 @@ log_level: "INFO"
 ❌ **Wrong:** Multiple EVOLVE-BLOCK sections  
 ✅ **Correct:** Exactly one EVOLVE-BLOCK section
 
+## MAP-Elites Feature Dimensions Best Practices
+
+When using custom feature dimensions, your evaluator must return **raw continuous values**, not pre-computed bin indices:
+
+### ✅ Correct: Return Raw Values
+```python
+def evaluate(program_path: str) -> Dict:
+    # Calculate actual measurements
+    prompt_length = len(generated_prompt)  # Actual character count
+    execution_time = measure_runtime()     # Time in seconds
+    memory_usage = get_peak_memory()       # Bytes used
+    
+    return {
+        "combined_score": accuracy_score,
+        "prompt_length": prompt_length,    # Raw count, not bin index
+        "execution_time": execution_time,  # Raw seconds, not bin index  
+        "memory_usage": memory_usage       # Raw bytes, not bin index
+    }
+```
+
+### ❌ Wrong: Return Bin Indices
+```python
+def evaluate(program_path: str) -> Dict:
+    prompt_length = len(generated_prompt)
+    
+    # DON'T DO THIS - pre-computing bins
+    if prompt_length < 100:
+        length_bin = 0
+    elif prompt_length < 500:
+        length_bin = 1
+    # ... more binning logic
+    
+    return {
+        "combined_score": accuracy_score,
+        "prompt_length": length_bin,  # ❌ This is a bin index, not raw value
+    }
+```
+
+### Why This Matters
+- OpenEvolve uses min-max scaling internally
+- Bin indices get incorrectly scaled as if they were raw values
+- Grid positions become unstable as new programs change the min/max range
+- This violates MAP-Elites principles and leads to poor evolution
+
+### Examples of Good Feature Dimensions
+- **Counts**: Token count, line count, character count
+- **Performance**: Execution time, memory usage, throughput
+- **Quality**: Accuracy, precision, recall, F1 score  
+- **Complexity**: Cyclomatic complexity, nesting depth, function count
+
 ## Running Your Example
 
 ```bash

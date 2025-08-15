@@ -377,6 +377,29 @@ database:
     correctness: 15       # 15 bins for correctness (from YOUR evaluator)
 ```
 
+**CRITICAL: Return Raw Values, Not Bin Indices**: For custom feature dimensions, your evaluator must return **raw continuous values**, not pre-computed bin indices. OpenEvolve handles all scaling and binning internally.
+
+```python
+# ✅ CORRECT: Return raw values
+return {
+    "combined_score": 0.85,
+    "prompt_length": 1247,     # Actual character count
+    "execution_time": 0.234    # Raw time in seconds
+}
+
+# ❌ WRONG: Don't return bin indices
+return {
+    "combined_score": 0.85,
+    "prompt_length": 7,        # Pre-computed bin index
+    "execution_time": 3        # Pre-computed bin index
+}
+```
+
+OpenEvolve automatically handles:
+- Min-max scaling to [0,1] range
+- Binning into the specified number of bins  
+- Adaptive scaling as the value range expands during evolution
+
 **Important**: OpenEvolve will raise an error if a specified feature is not found in the evaluator's metrics. This ensures your configuration is correct. The error message will show available metrics to help you fix the configuration.
 
 See the [Configuration Guide](configs/default_config.yaml) for a full list of options.

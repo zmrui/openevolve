@@ -61,38 +61,28 @@ else:
 
 def calculate_prompt_features(prompt):
     """
-    Calculate custom features for MAP-Elites binning
+    Calculate custom features for MAP-Elites
+
+    IMPORTANT: Returns raw continuous values, not bin indices.
+    The database handles all scaling and binning automatically.
 
     Returns:
-        tuple: (prompt_length, reasoning_strategy) - both in range 0-9
+        tuple: (prompt_length, reasoning_sophistication_score)
+        - prompt_length: Actual character count
+        - reasoning_sophistication_score: Continuous score 0.0-1.0
     """
-    # Feature 1: Prompt length bin (0-9)
-    length = len(prompt)
-    if length < 100:
-        prompt_length = 0  # Minimal
-    elif length < 200:
-        prompt_length = 1  # Very short
-    elif length < 400:
-        prompt_length = 2  # Short
-    elif length < 600:
-        prompt_length = 3  # Medium-short
-    elif length < 900:
-        prompt_length = 4  # Medium
-    elif length < 1200:
-        prompt_length = 5  # Medium-long
-    elif length < 1600:
-        prompt_length = 6  # Long
-    elif length < 2000:
-        prompt_length = 7  # Very long
-    elif length < 2500:
-        prompt_length = 8  # Extensive
-    else:
-        prompt_length = 9  # Very extensive
+    # Feature 1: Prompt length (raw character count)
+    prompt_length = len(prompt)
 
-    # Feature 2: Reasoning strategy (0-9)
+    # Feature 2: Reasoning sophistication score (continuous 0.0-1.0)
     prompt_lower = prompt.lower()
+    sophistication_score = 0.0
 
-    # Check for few-shot examples
+    # Base scoring
+    if len(prompt) >= 100:
+        sophistication_score += 0.1  # Has substantial content
+
+    # Check for few-shot examples (high sophistication)
     has_example = (
         "example" in prompt_lower
         or prompt.count("####") >= 4
@@ -107,33 +97,40 @@ def calculate_prompt_features(prompt):
         or bool(re.search(r"(first|then|next|finally)", prompt_lower))
     )
 
-    # Assign reasoning strategy bins
-    if has_example:
-        # Few-shot examples (bins 7-9)
-        if has_cot:
-            reasoning_strategy = 9  # Few-shot + CoT (most sophisticated)
-        elif length > 1500:
-            reasoning_strategy = 8  # Extensive few-shot
-        else:
-            reasoning_strategy = 7  # Basic few-shot
-    elif has_cot:
-        # Chain-of-thought (bins 4-6)
-        if "must" in prompt_lower or "exactly" in prompt_lower:
-            reasoning_strategy = 6  # Strict CoT
-        elif length > 500:
-            reasoning_strategy = 5  # Detailed CoT
-        else:
-            reasoning_strategy = 4  # Basic CoT
-    else:
-        # Basic prompts (bins 0-3)
-        if length < 100:
-            reasoning_strategy = 0  # Minimal
-        elif "solve" in prompt_lower or "calculate" in prompt_lower:
-            reasoning_strategy = 2  # Direct instruction
-        else:
-            reasoning_strategy = 1  # Simple prompt
+    # Check for directive language
+    has_directive = "solve" in prompt_lower or "calculate" in prompt_lower
 
-    return prompt_length, reasoning_strategy
+    # Check for strict language
+    has_strict = "must" in prompt_lower or "exactly" in prompt_lower
+
+    # Calculate sophistication score
+    if has_example:
+        sophistication_score += 0.6  # Few-shot examples are sophisticated
+        if has_cot:
+            sophistication_score += 0.3  # Few-shot + CoT is most sophisticated
+        elif len(prompt) > 1500:
+            sophistication_score += 0.2  # Extensive few-shot
+        else:
+            sophistication_score += 0.1  # Basic few-shot
+    elif has_cot:
+        sophistication_score += 0.4  # Chain-of-thought
+        if has_strict:
+            sophistication_score += 0.2  # Strict CoT
+        elif len(prompt) > 500:
+            sophistication_score += 0.15  # Detailed CoT
+        else:
+            sophistication_score += 0.1  # Basic CoT
+    else:
+        # Basic prompts
+        if has_directive:
+            sophistication_score += 0.2  # Direct instruction
+        else:
+            sophistication_score += 0.1  # Simple prompt
+
+    # Ensure score is within 0.0-1.0 range
+    sophistication_score = min(1.0, max(0.0, sophistication_score))
+
+    return prompt_length, sophistication_score
 
 
 def load_prompt_config(prompt_path):
@@ -492,13 +489,15 @@ def evaluate_stage1(prompt_path):
         print("-" * 80)
 
         # Calculate custom features
-        prompt_length, reasoning_strategy = calculate_prompt_features(prompt)
-        print(f"Prompt features - Length bin: {prompt_length}, Reasoning bin: {reasoning_strategy}")
+        prompt_length, reasoning_sophistication = calculate_prompt_features(prompt)
+        print(
+            f"Prompt features - Length: {prompt_length} chars, Reasoning sophistication: {reasoning_sophistication:.3f}"
+        )
 
         return {
             "combined_score": accuracy,
             "prompt_length": prompt_length,
-            "reasoning_strategy": reasoning_strategy,
+            "reasoning_strategy": reasoning_sophistication,
         }
 
     except Exception as e:
@@ -511,15 +510,15 @@ def evaluate_stage1(prompt_path):
             # Try to calculate features from the failed prompt
             with open(prompt_path, "r") as f:
                 failed_prompt = f.read().strip()
-            prompt_length, reasoning_strategy = calculate_prompt_features(failed_prompt)
+            prompt_length, reasoning_sophistication = calculate_prompt_features(failed_prompt)
         except:
             # Fallback values if prompt can't be read
-            prompt_length, reasoning_strategy = 0, 0
+            prompt_length, reasoning_sophistication = 0, 0.0
 
         return {
             "combined_score": 0.0,
             "prompt_length": prompt_length,
-            "reasoning_strategy": reasoning_strategy,
+            "reasoning_strategy": reasoning_sophistication,
             "error": str(e),
         }
 
@@ -560,13 +559,15 @@ def evaluate_stage2(prompt_path):
         print("-" * 80)
 
         # Calculate custom features
-        prompt_length, reasoning_strategy = calculate_prompt_features(prompt)
-        print(f"Prompt features - Length bin: {prompt_length}, Reasoning bin: {reasoning_strategy}")
+        prompt_length, reasoning_sophistication = calculate_prompt_features(prompt)
+        print(
+            f"Prompt features - Length: {prompt_length} chars, Reasoning sophistication: {reasoning_sophistication:.3f}"
+        )
 
         return {
             "combined_score": accuracy,
             "prompt_length": prompt_length,
-            "reasoning_strategy": reasoning_strategy,
+            "reasoning_strategy": reasoning_sophistication,
         }
 
     except Exception as e:
@@ -579,15 +580,15 @@ def evaluate_stage2(prompt_path):
             # Try to calculate features from the failed prompt
             with open(prompt_path, "r") as f:
                 failed_prompt = f.read().strip()
-            prompt_length, reasoning_strategy = calculate_prompt_features(failed_prompt)
+            prompt_length, reasoning_sophistication = calculate_prompt_features(failed_prompt)
         except:
             # Fallback values if prompt can't be read
-            prompt_length, reasoning_strategy = 0, 0
+            prompt_length, reasoning_sophistication = 0, 0.0
 
         return {
             "combined_score": 0.0,
             "prompt_length": prompt_length,
-            "reasoning_strategy": reasoning_strategy,
+            "reasoning_strategy": reasoning_sophistication,
             "error": str(e),
         }
 

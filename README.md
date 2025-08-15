@@ -91,6 +91,44 @@ OpenEvolve orchestrates a sophisticated evolutionary pipeline:
    - Feature map clustering and archive management
    - Comprehensive metadata and lineage tracking
 
+### Island-Based Evolution with Worker Pinning
+
+OpenEvolve implements a sophisticated island-based evolutionary architecture that maintains multiple isolated populations to prevent premature convergence and preserve genetic diversity.
+
+#### How Islands Work
+
+- **Multiple Isolated Populations**: Each island maintains its own population of programs that evolve independently
+- **Periodic Migration**: Top-performing programs periodically migrate between adjacent islands (ring topology) to share beneficial mutations
+- **True Population Isolation**: Worker processes are deterministically pinned to specific islands to ensure no cross-contamination during parallel evolution
+
+#### Worker-to-Island Pinning
+
+To ensure true island isolation during parallel execution, OpenEvolve implements automatic worker-to-island pinning:
+
+```python
+# Workers are distributed across islands using modulo arithmetic
+worker_id = 0, 1, 2, 3, 4, 5, ...
+island_id = worker_id % num_islands
+
+# Example with 3 islands and 6 workers:
+# Worker 0, 3 → Island 0  
+# Worker 1, 4 → Island 1
+# Worker 2, 5 → Island 2
+```
+
+**Benefits of Worker Pinning**:
+- **Genetic Isolation**: Prevents accidental population mixing between islands during parallel sampling
+- **Consistent Evolution**: Each island maintains its distinct evolutionary trajectory
+- **Balanced Load**: Workers are evenly distributed across islands automatically
+- **Migration Integrity**: Controlled migration happens only at designated intervals, not due to race conditions
+
+**Automatic Distribution**: The system handles all edge cases automatically:
+- **More workers than islands**: Multiple workers per island with balanced distribution
+- **Fewer workers than islands**: Some islands may not have dedicated workers but still participate in migration
+- **Single island**: All workers sample from the same population (degrades to standard evolution)
+
+This architecture ensures that each island develops unique evolutionary pressures and solutions, while periodic migration allows successful innovations to spread across the population without destroying diversity.
+
 ## Getting Started
 
 ### Installation
@@ -376,6 +414,29 @@ database:
     performance: 20       # 20 bins for performance (from YOUR evaluator)
     correctness: 15       # 15 bins for correctness (from YOUR evaluator)
 ```
+
+**CRITICAL: Return Raw Values, Not Bin Indices**: For custom feature dimensions, your evaluator must return **raw continuous values**, not pre-computed bin indices. OpenEvolve handles all scaling and binning internally.
+
+```python
+# ✅ CORRECT: Return raw values
+return {
+    "combined_score": 0.85,
+    "prompt_length": 1247,     # Actual character count
+    "execution_time": 0.234    # Raw time in seconds
+}
+
+# ❌ WRONG: Don't return bin indices
+return {
+    "combined_score": 0.85,
+    "prompt_length": 7,        # Pre-computed bin index
+    "execution_time": 3        # Pre-computed bin index
+}
+```
+
+OpenEvolve automatically handles:
+- Min-max scaling to [0,1] range
+- Binning into the specified number of bins  
+- Adaptive scaling as the value range expands during evolution
 
 **Important**: OpenEvolve will raise an error if a specified feature is not found in the evaluator's metrics. This ensures your configuration is correct. The error message will show available metrics to help you fix the configuration.
 

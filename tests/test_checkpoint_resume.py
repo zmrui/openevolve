@@ -308,8 +308,13 @@ def evaluate(program_path):
                 )
 
                 # Mock the parallel controller to avoid API calls
-                with patch.object(controller, "parallel_controller") as mock_parallel:
+                with patch("openevolve.controller.ProcessParallelController") as mock_parallel_class:
+                    mock_parallel = MagicMock()
                     mock_parallel.run_evolution = AsyncMock(return_value=None)
+                    mock_parallel.start = MagicMock()
+                    mock_parallel.stop = MagicMock()
+                    mock_parallel.shutdown_event.is_set.return_value = False
+                    mock_parallel_class.return_value = mock_parallel
 
                     # Run first time
                     result1 = await controller.run(iterations=0)

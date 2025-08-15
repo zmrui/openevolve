@@ -252,22 +252,39 @@ class TestIslandMigration(unittest.TestCase):
         
         # Record island populations before migration
         island_sizes_before = [len(island) for island in self.database.islands]
+        original_program_count = len(self.database.programs)
         
         # Verify we set up the test correctly
         self.assertEqual(sum(island_sizes_before), 30)
+        self.assertEqual(original_program_count, 30)
         
         # Trigger migration
         self.database.migrate_programs()
         
         # Check islands still have programs
         island_sizes_after = [len(island) for island in self.database.islands]
+        total_programs_after = len(self.database.programs)
         
         # All islands should still have programs
         for size in island_sizes_after:
             self.assertGreater(size, 0)
         
-        # Total population should be unchanged
-        self.assertEqual(sum(island_sizes_before), sum(island_sizes_after))
+        # Migration creates copies, so total population should increase
+        # With migration_rate=0.1 and 10 programs per island, expect ~1 program per island to migrate
+        # Each program migrates to 2 adjacent islands, so we expect ~6 new programs
+        self.assertGreater(total_programs_after, original_program_count)
+        self.assertGreater(sum(island_sizes_after), sum(island_sizes_before))
+        
+        # Verify that migrant programs have correct metadata
+        migrant_count = 0
+        for program in self.database.programs.values():
+            if program.metadata.get("migrant", False):
+                migrant_count += 1
+                # Migrant should have "_migrant_" in their ID
+                self.assertIn("_migrant_", program.id)
+        
+        # Should have some migrant programs
+        self.assertGreater(migrant_count, 0)
 
 
 class TestWorkerPinningEdgeCases(unittest.TestCase):

@@ -139,8 +139,8 @@ def evaluate(program_path):
                     start_iteration=1, max_iterations=1, target_score=None
                 )
 
-                # Verify iteration was submitted
-                mock_submit.assert_called_once_with(1)
+                # Verify iteration was submitted with island_id
+                mock_submit.assert_called_once_with(1, 0)
 
                 # Verify program was added to database
                 self.assertIn("child_1", self.database.programs)

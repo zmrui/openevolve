@@ -337,6 +337,40 @@ Sample configuration files are available in the `configs/` directory:
 - `default_config.yaml`: Comprehensive configuration with all available options
 - `island_config_example.yaml`: Advanced island-based evolution setup
 
+### Prompt Engineering Design
+
+OpenEvolve uses a sophisticated prompt engineering approach that separates different types of program examples to optimize LLM learning:
+
+#### Program Selection Strategy
+
+The system distinguishes between three types of program examples shown to the LLM:
+
+1. **Previous Attempts** (`num_top_programs`): Shows only the best performing programs to demonstrate high-quality approaches
+   - Used for the "Previous Attempts" section in prompts
+   - Focused on proven successful patterns
+   - Helps LLM understand what constitutes good performance
+
+2. **Top Programs** (`num_top_programs + num_diverse_programs`): Broader selection including both top performers and diverse approaches
+   - Used for the "Top Performing Programs" section
+   - Includes diverse programs to prevent local optima
+   - Balances exploitation of known good solutions with exploration of novel approaches
+
+3. **Inspirations** (`num_top_programs`): Cross-island program samples for creative inspiration
+   - Derived from other evolution islands to maintain diversity
+   - Count automatically configures based on `num_top_programs` setting
+   - Prevents convergence by exposing LLM to different evolutionary trajectories
+
+#### Design Rationale
+
+This separation is intentional and serves multiple purposes:
+
+- **Focused Learning**: Previous attempts show only the best patterns, helping LLM understand quality standards
+- **Diversity Maintenance**: Top programs include diverse solutions to encourage exploration beyond local optima  
+- **Cross-Pollination**: Inspirations from other islands introduce novel approaches and prevent stagnation
+- **Configurable Balance**: Adjust `num_top_programs` and `num_diverse_programs` to control exploration vs exploitation
+
+The inspiration count automatically scales with `num_top_programs` to maintain consistency across different configuration sizes, eliminating the need for a separate configuration parameter.
+
 ### Template Customization
 
 OpenEvolve supports advanced prompt template customization to increase diversity in code evolution:

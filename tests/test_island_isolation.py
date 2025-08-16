@@ -109,7 +109,7 @@ class TestIslandIsolation(unittest.TestCase):
         # Track which islands were sampled
         sampled_islands = []
         
-        def mock_sample():
+        def mock_sample(num_inspirations=None):
             # Record which island was sampled
             sampled_islands.append(self.database.current_island)
             # Return mock parent and inspirations

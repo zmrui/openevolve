@@ -304,9 +304,12 @@ class ProgramDatabase:
         """
         return self.programs.get(program_id)
 
-    def sample(self) -> Tuple[Program, List[Program]]:
+    def sample(self, num_inspirations: Optional[int] = None) -> Tuple[Program, List[Program]]:
         """
         Sample a program and inspirations for the next evolution step
+
+        Args:
+            num_inspirations: Number of inspiration programs to sample (defaults to 5 for backward compatibility)
 
         Returns:
             Tuple of (parent_program, inspiration_programs)
@@ -315,7 +318,9 @@ class ProgramDatabase:
         parent = self._sample_parent()
 
         # Select inspirations
-        inspirations = self._sample_inspirations(parent, n=5)
+        if num_inspirations is None:
+            num_inspirations = 5  # Default for backward compatibility
+        inspirations = self._sample_inspirations(parent, n=num_inspirations)
 
         logger.debug(f"Sampled parent {parent.id} and {len(inspirations)} inspirations")
         return parent, inspirations
@@ -436,10 +441,10 @@ class ProgramDatabase:
                 reverse=True,
             )
         else:
-            # Sort by average of all numeric metrics
+            # Sort by combined_score if available, otherwise by average of all numeric metrics
             sorted_programs = sorted(
                 candidates,
-                key=lambda p: safe_numeric_average(p.metrics),
+                key=lambda p: p.metrics.get("combined_score", safe_numeric_average(p.metrics)),
                 reverse=True,
             )
 
@@ -877,7 +882,7 @@ class ProgramDatabase:
         # Find worst program among valid programs
         if valid_archive_programs:
             worst_program = min(
-                valid_archive_programs, key=lambda p: safe_numeric_average(p.metrics)
+                valid_archive_programs, key=lambda p: p.metrics.get("combined_score", safe_numeric_average(p.metrics))
             )
 
             # Replace if new program is better
@@ -1279,10 +1284,10 @@ class ProgramDatabase:
         # Get programs sorted by fitness (worst first)
         all_programs = list(self.programs.values())
 
-        # Sort by average metric (worst first)
+        # Sort by combined_score if available, otherwise by average metric (worst first)
         sorted_programs = sorted(
             all_programs,
-            key=lambda p: safe_numeric_average(p.metrics),
+            key=lambda p: p.metrics.get("combined_score", safe_numeric_average(p.metrics)),
         )
 
         # Remove worst programs, but never remove the best program or excluded program

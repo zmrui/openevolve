@@ -591,7 +591,7 @@ class ProcessParallelController:
             
             try:
                 # Sample parent and inspirations from the target island
-                parent, inspirations = self.database.sample(num_inspirations=_worker_config.prompt.num_top_programs)
+                parent, inspirations = self.database.sample(num_inspirations=self.config.prompt.num_top_programs)
             finally:
                 # Always restore original island state
                 self.database.current_island = original_island

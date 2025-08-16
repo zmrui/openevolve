@@ -441,10 +441,10 @@ class ProgramDatabase:
                 reverse=True,
             )
         else:
-            # Sort by average of all numeric metrics
+            # Sort by combined_score if available, otherwise by average of all numeric metrics
             sorted_programs = sorted(
                 candidates,
-                key=lambda p: safe_numeric_average(p.metrics),
+                key=lambda p: p.metrics.get("combined_score", safe_numeric_average(p.metrics)),
                 reverse=True,
             )
 
@@ -882,7 +882,7 @@ class ProgramDatabase:
         # Find worst program among valid programs
         if valid_archive_programs:
             worst_program = min(
-                valid_archive_programs, key=lambda p: safe_numeric_average(p.metrics)
+                valid_archive_programs, key=lambda p: p.metrics.get("combined_score", safe_numeric_average(p.metrics))
             )
 
             # Replace if new program is better
@@ -1284,10 +1284,10 @@ class ProgramDatabase:
         # Get programs sorted by fitness (worst first)
         all_programs = list(self.programs.values())
 
-        # Sort by average metric (worst first)
+        # Sort by combined_score if available, otherwise by average metric (worst first)
         sorted_programs = sorted(
             all_programs,
-            key=lambda p: safe_numeric_average(p.metrics),
+            key=lambda p: p.metrics.get("combined_score", safe_numeric_average(p.metrics)),
         )
 
         # Remove worst programs, but never remove the best program or excluded program

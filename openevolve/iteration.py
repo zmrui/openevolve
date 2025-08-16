@@ -48,7 +48,7 @@ async def run_iteration_with_shared_db(
 
     try:
         # Sample parent and inspirations from database
-        parent, inspirations = database.sample()
+        parent, inspirations = database.sample(num_inspirations=config.prompt.num_top_programs)
 
         # Get artifacts for the parent program if available
         parent_artifacts = database.get_artifacts(parent.id)

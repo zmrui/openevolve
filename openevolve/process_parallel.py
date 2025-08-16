@@ -153,18 +153,20 @@ def _run_iteration_worker(
         )
 
         # Use config values for limits instead of hardcoding
-        island_top_programs = island_programs[
+        # Programs for LLM display (includes both top and diverse for inspiration)
+        programs_for_prompt = island_programs[
             : _worker_config.prompt.num_top_programs + _worker_config.prompt.num_diverse_programs
         ]
-        island_previous_programs = island_programs[: _worker_config.prompt.num_top_programs]
+        # Best programs only (for previous attempts section, focused on top performers)
+        best_programs_only = island_programs[: _worker_config.prompt.num_top_programs]
 
         # Build prompt
         prompt = _worker_prompt_sampler.build_prompt(
             current_program=parent.code,
             parent_program=parent.code,
             program_metrics=parent.metrics,
-            previous_programs=[p.to_dict() for p in island_previous_programs],
-            top_programs=[p.to_dict() for p in island_top_programs],
+            previous_programs=[p.to_dict() for p in best_programs_only],
+            top_programs=[p.to_dict() for p in programs_for_prompt],
             inspirations=[p.to_dict() for p in inspirations],
             language=_worker_config.language,
             evolution_round=iteration,
@@ -589,7 +591,7 @@ class ProcessParallelController:
             
             try:
                 # Sample parent and inspirations from the target island
-                parent, inspirations = self.database.sample()
+                parent, inspirations = self.database.sample(num_inspirations=_worker_config.prompt.num_top_programs)
             finally:
                 # Always restore original island state
                 self.database.current_island = original_island

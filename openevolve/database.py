@@ -304,9 +304,12 @@ class ProgramDatabase:
         """
         return self.programs.get(program_id)
 
-    def sample(self) -> Tuple[Program, List[Program]]:
+    def sample(self, num_inspirations: Optional[int] = None) -> Tuple[Program, List[Program]]:
         """
         Sample a program and inspirations for the next evolution step
+
+        Args:
+            num_inspirations: Number of inspiration programs to sample (defaults to 5 for backward compatibility)
 
         Returns:
             Tuple of (parent_program, inspiration_programs)
@@ -315,7 +318,9 @@ class ProgramDatabase:
         parent = self._sample_parent()
 
         # Select inspirations
-        inspirations = self._sample_inspirations(parent, n=5)
+        if num_inspirations is None:
+            num_inspirations = 5  # Default for backward compatibility
+        inspirations = self._sample_inspirations(parent, n=num_inspirations)
 
         logger.debug(f"Sampled parent {parent.id} and {len(inspirations)} inspirations")
         return parent, inspirations

@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from openevolve.config import PromptConfig
 from openevolve.prompt.templates import TemplateManager
 from openevolve.utils.format_utils import format_metrics_safe
-from openevolve.utils.metrics_utils import safe_numeric_average
+from openevolve.utils.metrics_utils import safe_numeric_average, get_fitness_score, format_feature_coordinates
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class PromptSampler:
 
     def __init__(self, config: PromptConfig):
         self.config = config
-        self.template_manager = TemplateManager(config.template_dir)
+        self.template_manager = TemplateManager(custom_template_dir=config.template_dir)
 
         # Initialize the random number generator
         random.seed()
@@ -60,6 +60,7 @@ class PromptSampler:
         diff_based_evolution: bool = True,
         template_key: Optional[str] = None,
         program_artifacts: Optional[Dict[str, Union[str, bytes]]] = None,
+        feature_dimensions: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> Dict[str, str]:
         """
@@ -110,7 +111,7 @@ class PromptSampler:
 
         # Identify areas for improvement
         improvement_areas = self._identify_improvement_areas(
-            current_program, parent_program, program_metrics, previous_programs
+            current_program, parent_program, program_metrics, previous_programs, feature_dimensions
         )
 
         # Format evolution history
@@ -127,9 +128,17 @@ class PromptSampler:
         if self.config.use_template_stochasticity:
             user_template = self._apply_template_variations(user_template)
 
+        # Calculate fitness and feature coordinates for the new template format
+        feature_dimensions = feature_dimensions or []
+        fitness_score = get_fitness_score(program_metrics, feature_dimensions)
+        feature_coords = format_feature_coordinates(program_metrics, feature_dimensions)
+        
         # Format the final user message
         user_message = user_template.format(
             metrics=metrics_str,
+            fitness_score=f"{fitness_score:.4f}",
+            feature_coords=feature_coords,
+            feature_dimensions=", ".join(feature_dimensions) if feature_dimensions else "None",
             improvement_areas=improvement_areas,
             evolution_history=evolution_history,
             current_program=current_program,
@@ -163,74 +172,70 @@ class PromptSampler:
         parent_program: str,
         metrics: Dict[str, float],
         previous_programs: List[Dict[str, Any]],
+        feature_dimensions: Optional[List[str]] = None,
     ) -> str:
-        """Identify potential areas for improvement"""
-        # This method could be expanded to include more sophisticated analysis
-        # For now, we'll use a simple approach
-
+        """Identify improvement areas with proper fitness/feature separation"""
+        
         improvement_areas = []
-
-        # Check program length
-        # Support both old and new parameter names for backward compatibility
+        feature_dimensions = feature_dimensions or []
+        
+        # Calculate fitness (excluding feature dimensions)
+        current_fitness = get_fitness_score(metrics, feature_dimensions)
+        
+        # Track fitness changes (not individual metrics)
+        if previous_programs:
+            prev_metrics = previous_programs[-1].get("metrics", {})
+            prev_fitness = get_fitness_score(prev_metrics, feature_dimensions)
+            
+            if current_fitness > prev_fitness:
+                msg = self.template_manager.get_fragment(
+                    "fitness_improved",
+                    prev=prev_fitness,
+                    current=current_fitness
+                )
+                improvement_areas.append(msg)
+            elif current_fitness < prev_fitness:
+                msg = self.template_manager.get_fragment(
+                    "fitness_declined", 
+                    prev=prev_fitness,
+                    current=current_fitness
+                )
+                improvement_areas.append(msg)
+            elif abs(current_fitness - prev_fitness) < 1e-6:  # Essentially unchanged
+                msg = self.template_manager.get_fragment(
+                    "fitness_stable",
+                    current=current_fitness
+                )
+                improvement_areas.append(msg)
+        
+        # Note feature exploration (not good/bad, just informational)
+        if feature_dimensions:
+            feature_coords = format_feature_coordinates(metrics, feature_dimensions)
+            if feature_coords != "No feature coordinates":
+                msg = self.template_manager.get_fragment(
+                    "exploring_region",
+                    features=feature_coords
+                )
+                improvement_areas.append(msg)
+        
+        # Code length check (configurable threshold)
         threshold = (
             self.config.suggest_simplification_after_chars or self.config.code_length_threshold
         )
         if threshold and len(current_program) > threshold:
-            improvement_areas.append(
-                "Consider simplifying the code to improve readability and maintainability"
+            msg = self.template_manager.get_fragment(
+                "code_too_long",
+                threshold=threshold
             )
-
-        # Check for performance patterns in previous attempts
-        if len(previous_programs) >= 2:
-            recent_attempts = previous_programs[-2:]
-            metrics_improved = []
-            metrics_regressed = []
-
-            for metric, value in metrics.items():
-                # Only compare numeric metrics
-                if not isinstance(value, (int, float)) or isinstance(value, bool):
-                    continue
-
-                improved = True
-                regressed = True
-
-                for attempt in recent_attempts:
-                    attempt_value = attempt["metrics"].get(metric, 0)
-                    # Only compare if both values are numeric
-                    if isinstance(value, (int, float)) and isinstance(attempt_value, (int, float)):
-                        if attempt_value <= value:
-                            regressed = False
-                        if attempt_value >= value:
-                            improved = False
-                    else:
-                        # If either value is non-numeric, skip comparison
-                        improved = False
-                        regressed = False
-
-                if improved and metric not in metrics_improved:
-                    metrics_improved.append(metric)
-                if regressed and metric not in metrics_regressed:
-                    metrics_regressed.append(metric)
-
-            if metrics_improved:
-                improvement_areas.append(
-                    f"Metrics showing improvement: {', '.join(metrics_improved)}. "
-                    "Consider continuing with similar changes."
-                )
-
-            if metrics_regressed:
-                improvement_areas.append(
-                    f"Metrics showing regression: {', '.join(metrics_regressed)}. "
-                    "Consider reverting or revising recent changes in these areas."
-                )
-
-        # If we don't have specific improvements to suggest
+            improvement_areas.append(msg)
+        
+        # Default guidance if nothing specific
         if not improvement_areas:
             improvement_areas.append(
-                "Focus on optimizing the code for better performance on the target metrics"
+                self.template_manager.get_fragment("no_specific_guidance")
             )
-
-        return "\n".join([f"- {area}" for area in improvement_areas])
+        
+        return "\n".join(f"- {area}" for area in improvement_areas)
 
     def _format_evolution_history(
         self,

@@ -19,7 +19,7 @@ import numpy as np
 
 from openevolve.config import DatabaseConfig
 from openevolve.utils.code_utils import calculate_edit_distance
-from openevolve.utils.metrics_utils import safe_numeric_average
+from openevolve.utils.metrics_utils import safe_numeric_average, get_fitness_score
 
 logger = logging.getLogger(__name__)
 
@@ -247,8 +247,8 @@ class ProgramDatabase:
                 existing_program_id = self.feature_map[feature_key]
                 if existing_program_id in self.programs:
                     existing_program = self.programs[existing_program_id]
-                    new_fitness = safe_numeric_average(program.metrics)
-                    existing_fitness = safe_numeric_average(existing_program.metrics)
+                    new_fitness = get_fitness_score(program.metrics, self.config.feature_dimensions)
+                    existing_fitness = get_fitness_score(existing_program.metrics, self.config.feature_dimensions)
                     logger.info(
                         "MAP-Elites cell improved: %s (fitness: %.3f -> %.3f)",
                         coords_dict,
@@ -358,22 +358,15 @@ class ProgramDatabase:
             )
             if sorted_programs:
                 logger.debug(f"Found best program by metric '{metric}': {sorted_programs[0].id}")
-        elif self.programs and all("combined_score" in p.metrics for p in self.programs.values()):
-            # Sort by combined_score if it exists (preferred method)
-            sorted_programs = sorted(
-                self.programs.values(), key=lambda p: p.metrics["combined_score"], reverse=True
-            )
-            if sorted_programs:
-                logger.debug(f"Found best program by combined_score: {sorted_programs[0].id}")
         else:
-            # Sort by average of all numeric metrics as fallback
+            # Sort by fitness (excluding feature dimensions)
             sorted_programs = sorted(
                 self.programs.values(),
-                key=lambda p: safe_numeric_average(p.metrics),
+                key=lambda p: get_fitness_score(p.metrics, self.config.feature_dimensions),
                 reverse=True,
             )
             if sorted_programs:
-                logger.debug(f"Found best program by average metrics: {sorted_programs[0].id}")
+                logger.debug(f"Found best program by fitness score: {sorted_programs[0].id}")
 
         # Update the best program tracking if we found a better program
         if sorted_programs and (
@@ -444,7 +437,7 @@ class ProgramDatabase:
             # Sort by combined_score if available, otherwise by average of all numeric metrics
             sorted_programs = sorted(
                 candidates,
-                key=lambda p: p.metrics.get("combined_score", safe_numeric_average(p.metrics)),
+                key=lambda p: get_fitness_score(p.metrics, self.config.feature_dimensions),
                 reverse=True,
             )
 
@@ -718,7 +711,8 @@ class ProgramDatabase:
                 if not program.metrics:
                     bin_idx = 0
                 else:
-                    avg_score = safe_numeric_average(program.metrics)
+                    # Use fitness score for "score" dimension (consistent with rest of system)
+                    avg_score = get_fitness_score(program.metrics, self.config.feature_dimensions)
                     # Update stats and scale
                     self._update_feature_stats("score", avg_score)
                     scaled_value = self._scale_feature_value("score", avg_score)
@@ -818,7 +812,10 @@ class ProgramDatabase:
 
     def _is_better(self, program1: Program, program2: Program) -> bool:
         """
-        Determine if program1 is better than program2
+        Determine if program1 has better FITNESS than program2
+        
+        Uses fitness calculation that excludes MAP-Elites feature dimensions
+        to prevent pollution of fitness comparisons.
 
         Args:
             program1: First program
@@ -837,15 +834,11 @@ class ProgramDatabase:
         if not program1.metrics and program2.metrics:
             return False
 
-        # Check for combined_score first (this is the preferred metric)
-        if "combined_score" in program1.metrics and "combined_score" in program2.metrics:
-            return program1.metrics["combined_score"] > program2.metrics["combined_score"]
+        # Compare fitness (excluding feature dimensions)
+        fitness1 = get_fitness_score(program1.metrics, self.config.feature_dimensions)
+        fitness2 = get_fitness_score(program2.metrics, self.config.feature_dimensions)
 
-        # Fallback to average of all numeric metrics
-        avg1 = safe_numeric_average(program1.metrics)
-        avg2 = safe_numeric_average(program2.metrics)
-
-        return avg1 > avg2
+        return fitness1 > fitness2
 
     def _update_archive(self, program: Program) -> None:
         """
@@ -882,7 +875,7 @@ class ProgramDatabase:
         # Find worst program among valid programs
         if valid_archive_programs:
             worst_program = min(
-                valid_archive_programs, key=lambda p: p.metrics.get("combined_score", safe_numeric_average(p.metrics))
+                valid_archive_programs, key=lambda p: get_fitness_score(p.metrics, self.config.feature_dimensions)
             )
 
             # Replace if new program is better
@@ -1287,7 +1280,7 @@ class ProgramDatabase:
         # Sort by combined_score if available, otherwise by average metric (worst first)
         sorted_programs = sorted(
             all_programs,
-            key=lambda p: p.metrics.get("combined_score", safe_numeric_average(p.metrics)),
+            key=lambda p: get_fitness_score(p.metrics, self.config.feature_dimensions),
         )
 
         # Remove worst programs, but never remove the best program or excluded program
@@ -1387,7 +1380,7 @@ class ProgramDatabase:
 
             # Sort by fitness (using combined_score or average metrics)
             island_programs.sort(
-                key=lambda p: p.metrics.get("combined_score", safe_numeric_average(p.metrics)),
+                key=lambda p: get_fitness_score(p.metrics, self.config.feature_dimensions),
                 reverse=True,
             )
 
@@ -1558,7 +1551,7 @@ class ProgramDatabase:
 
             if island_programs:
                 scores = [
-                    p.metrics.get("combined_score", safe_numeric_average(p.metrics))
+                    get_fitness_score(p.metrics, self.config.feature_dimensions)
                     for p in island_programs
                 ]
 

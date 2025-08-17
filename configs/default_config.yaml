@@ -109,7 +109,7 @@ database:
   #   - "diversity": Code structure diversity
   #
   # You can mix built-in features with custom metrics from your evaluator:
-  feature_dimensions:                 # Dimensions for MAP-Elites feature map
+  feature_dimensions:                 # Dimensions for MAP-Elites feature map (for diversity, NOT fitness)
     - "complexity"                    # Code length (built-in)
     - "diversity"                     # Code diversity (built-in)
   # Example with custom features:
@@ -131,6 +131,9 @@ database:
 
 # Evaluator configuration
 evaluator:
+  # Fitness calculation: Uses 'combined_score' if available, otherwise averages
+  # all metrics EXCEPT those listed in database.feature_dimensions
+  
   # General settings
   timeout: 300                        # Maximum evaluation time in seconds
   max_retries: 3                      # Maximum number of retries for evaluation

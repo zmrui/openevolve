@@ -563,8 +563,9 @@ class Evaluator:
 
         try:
             # Create prompt for LLM
+            feature_dimensions = self.database.config.feature_dimensions if self.database else []
             prompt = self.prompt_sampler.build_prompt(
-                current_program=program_code, template_key="evaluation"
+                current_program=program_code, template_key="evaluation", feature_dimensions=feature_dimensions
             )
 
             # Get LLM response

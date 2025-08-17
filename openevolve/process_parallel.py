@@ -172,6 +172,7 @@ def _run_iteration_worker(
             evolution_round=iteration,
             diff_based_evolution=_worker_config.diff_based_evolution,
             program_artifacts=parent_artifacts,
+            feature_dimensions=db_snapshot.get("feature_dimensions", []),
         )
 
         iteration_start = time.time()
@@ -349,6 +350,7 @@ class ProcessParallelController:
             "programs": {pid: prog.to_dict() for pid, prog in self.database.programs.items()},
             "islands": [list(island) for island in self.database.islands],
             "current_island": self.database.current_island,
+            "feature_dimensions": self.database.config.feature_dimensions,
             "artifacts": {},  # Will be populated selectively
         }
 

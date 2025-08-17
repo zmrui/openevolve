@@ -70,6 +70,7 @@ async def run_iteration_with_shared_db(
             evolution_round=iteration,
             diff_based_evolution=config.diff_based_evolution,
             program_artifacts=parent_artifacts if parent_artifacts else None,
+            feature_dimensions=database.config.feature_dimensions,
         )
 
         result = Result(parent=parent)

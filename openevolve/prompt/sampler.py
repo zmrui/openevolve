@@ -116,7 +116,7 @@ class PromptSampler:
 
         # Format evolution history
         evolution_history = self._format_evolution_history(
-            previous_programs, top_programs, inspirations, language
+            previous_programs, top_programs, inspirations, language, feature_dimensions
         )
 
         # Format artifacts section if enabled and available
@@ -243,6 +243,7 @@ class PromptSampler:
         top_programs: List[Dict[str, Any]],
         inspirations: List[Dict[str, Any]],
         language: str,
+        feature_dimensions: Optional[List[str]] = None,
     ) -> str:
         """Format the evolution history for the prompt"""
         # Get templates
@@ -321,8 +322,8 @@ class PromptSampler:
             # Use the full program code
             program_code = program.get("code", "")
 
-            # Calculate a composite score using safe numeric average
-            score = safe_numeric_average(program.get("metrics", {}))
+            # Calculate fitness score (prefers combined_score, excludes feature dimensions)
+            score = get_fitness_score(program.get("metrics", {}), feature_dimensions or [])
 
             # Extract key features (this could be more sophisticated)
             key_features = program.get("key_features", [])
@@ -371,8 +372,8 @@ class PromptSampler:
                     # Use the full program code
                     program_code = program.get("code", "")
 
-                    # Calculate a composite score using safe numeric average
-                    score = safe_numeric_average(program.get("metrics", {}))
+                    # Calculate fitness score (prefers combined_score, excludes feature dimensions)
+                    score = get_fitness_score(program.get("metrics", {}), feature_dimensions or [])
 
                     # Extract key features
                     key_features = program.get("key_features", [])
@@ -436,11 +437,11 @@ class PromptSampler:
             # Use the full program code
             program_code = program.get("code", "")
 
-            # Calculate a composite score using safe numeric average
-            score = safe_numeric_average(program.get("metrics", {}))
+            # Calculate fitness score (prefers combined_score, excludes feature dimensions)
+            score = get_fitness_score(program.get("metrics", {}), feature_dimensions or [])
 
             # Determine program type based on metadata and score
-            program_type = self._determine_program_type(program)
+            program_type = self._determine_program_type(program, feature_dimensions or [])
 
             # Extract unique features (emphasizing diversity rather than just performance)
             unique_features = self._extract_unique_features(program)
@@ -461,7 +462,7 @@ class PromptSampler:
             inspiration_programs=inspiration_programs_str.strip()
         )
 
-    def _determine_program_type(self, program: Dict[str, Any]) -> str:
+    def _determine_program_type(self, program: Dict[str, Any], feature_dimensions: Optional[List[str]] = None) -> str:
         """
         Determine the type/category of an inspiration program
 
@@ -472,7 +473,7 @@ class PromptSampler:
             String describing the program type
         """
         metadata = program.get("metadata", {})
-        score = safe_numeric_average(program.get("metrics", {}))
+        score = get_fitness_score(program.get("metrics", {}), feature_dimensions or [])
 
         # Check metadata for explicit type markers
         if metadata.get("diverse", False):

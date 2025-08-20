@@ -3,6 +3,8 @@ import os
 import uuid
 import logging
 import time
+import json
+import tempfile
 from dataclasses import dataclass
 
 from openevolve.database import Program, ProgramDatabase
@@ -114,7 +116,35 @@ async def run_iteration_with_shared_db(
 
         # Evaluate the child program
         child_id = str(uuid.uuid4())
-        result.child_metrics = await evaluator.evaluate_program(child_code, child_id)
+        
+        # Set parent context for network evaluator
+        # Save parent code to temporary file with random name
+        parent_temp_file = None
+        if parent.code:
+            parent_temp_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.c')
+            parent_temp_file.write(parent.code)
+            parent_temp_file.flush()
+            parent_temp_file.close()
+            os.environ['OPENEVOLVE_PARENT_PROGRAM_PATH'] = parent_temp_file.name
+        
+        os.environ['OPENEVOLVE_PARENT_PROGRAM_CODE'] = parent.code
+        os.environ['OPENEVOLVE_PARENT_PROGRAM_ID'] = parent.id
+        if parent.metrics:
+            os.environ['OPENEVOLVE_PARENT_METRICS'] = json.dumps(parent.metrics)
+        
+        try:
+            result.child_metrics = await evaluator.evaluate_program(child_code, child_id)
+        finally:
+            # Clear parent context and cleanup temp file
+            for var in ['OPENEVOLVE_PARENT_PROGRAM_CODE', 'OPENEVOLVE_PARENT_PROGRAM_ID', 'OPENEVOLVE_PARENT_METRICS', 'OPENEVOLVE_PARENT_PROGRAM_PATH']:
+                os.environ.pop(var, None)
+            
+            # Clean up temporary parent file
+            if parent_temp_file and os.path.exists(parent_temp_file.name):
+                try:
+                    os.unlink(parent_temp_file.name)
+                except Exception as e:
+                    logger.warning(f"Failed to cleanup temporary parent file {parent_temp_file.name}: {e}")
 
         # Handle artifacts if they exist
         artifacts = evaluator.get_pending_artifacts(child_id)

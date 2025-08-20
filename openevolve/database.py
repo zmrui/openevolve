@@ -188,7 +188,7 @@ class ProgramDatabase:
         Args:
             program: Program to add
             iteration: Current iteration (defaults to last_iteration)
-            target_island: Specific island to add to (uses current_island if None)
+            target_island: Specific island to add to (auto-detects parent's island if None)
 
         Returns:
             Program ID
@@ -263,8 +263,34 @@ class ProgramDatabase:
 
             self.feature_map[feature_key] = program.id
 
-        # Add to specific island (not random!)
-        island_idx = target_island if target_island is not None else self.current_island
+        # Determine target island
+        # If target_island is not specified and program has a parent, inherit parent's island
+        if target_island is None and program.parent_id:
+            parent = self.programs.get(program.parent_id)
+            if parent and "island" in parent.metadata:
+                # Child inherits parent's island to maintain island isolation
+                island_idx = parent.metadata["island"]
+                logger.debug(
+                    f"Program {program.id} inheriting island {island_idx} from parent {program.parent_id}"
+                )
+            else:
+                # Parent not found or has no island, use current_island
+                island_idx = self.current_island
+                if parent:
+                    logger.warning(
+                        f"Parent {program.parent_id} has no island metadata, using current_island {island_idx}"
+                    )
+                else:
+                    logger.warning(
+                        f"Parent {program.parent_id} not found, using current_island {island_idx}"
+                    )
+        elif target_island is not None:
+            # Explicit target island specified (e.g., for migrants)
+            island_idx = target_island
+        else:
+            # No parent and no target specified, use current island
+            island_idx = self.current_island
+        
         island_idx = island_idx % len(self.islands)  # Ensure valid island
         self.islands[island_idx].add(program.id)
 

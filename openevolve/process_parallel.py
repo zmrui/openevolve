@@ -441,7 +441,8 @@ class ProcessParallelController:
                     # Reconstruct program from dict
                     child_program = Program(**result.child_program_dict)
 
-                    # Add to database
+                    # Add to database (will auto-inherit parent's island)
+                    # No need to specify target_island - database will handle parent island inheritance
                     self.database.add(child_program, iteration=completed_iteration)
 
                     # Store artifacts

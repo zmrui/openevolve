@@ -402,7 +402,7 @@ class PromptSampler:
         combined_programs_str = top_programs_str + diverse_programs_str
 
         # Format inspirations section
-        inspirations_section_str = self._format_inspirations_section(inspirations, language)
+        inspirations_section_str = self._format_inspirations_section(inspirations, language, feature_dimensions)
 
         # Combine into full history
         return history_template.format(
@@ -412,7 +412,7 @@ class PromptSampler:
         )
 
     def _format_inspirations_section(
-        self, inspirations: List[Dict[str, Any]], language: str
+        self, inspirations: List[Dict[str, Any]], language: str, feature_dimensions: Optional[List[str]] = None
     ) -> str:
         """
         Format the inspirations section for the prompt

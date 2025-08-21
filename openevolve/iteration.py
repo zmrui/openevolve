@@ -126,6 +126,7 @@ async def run_iteration_with_shared_db(
             parent_temp_file.flush()
             parent_temp_file.close()
             os.environ['OPENEVOLVE_PARENT_PROGRAM_PATH'] = parent_temp_file.name
+            logger.info(f"Set OPENEVOLVE_PARENT_PROGRAM_PATH={parent_temp_file.name} for parent {parent.id}")
         
         os.environ['OPENEVOLVE_PARENT_PROGRAM_CODE'] = parent.code
         os.environ['OPENEVOLVE_PARENT_PROGRAM_ID'] = parent.id

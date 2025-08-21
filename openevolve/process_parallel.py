@@ -5,6 +5,7 @@ Process-based parallel controller for true parallelism
 import asyncio
 import logging
 import multiprocessing as mp
+import os
 import pickle
 import signal
 import time
@@ -218,9 +219,44 @@ def _run_iteration_worker(
 
         # Evaluate the child program
         import uuid
+        import tempfile
+        import json
 
         child_id = str(uuid.uuid4())
-        child_metrics = asyncio.run(_worker_evaluator.evaluate_program(child_code, child_id))
+        
+        # Set parent context for network evaluator
+        # Save parent code to temporary file with random name
+        parent_temp_file = None
+        if parent.code:
+            parent_temp_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.c')
+            parent_temp_file.write(parent.code)
+            parent_temp_file.flush()
+            parent_temp_file.close()
+            os.environ['OPENEVOLVE_PARENT_PROGRAM_PATH'] = parent_temp_file.name
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Set OPENEVOLVE_PARENT_PROGRAM_PATH={parent_temp_file.name} for parent {parent.id}")
+        
+        os.environ['OPENEVOLVE_PARENT_PROGRAM_CODE'] = parent.code
+        os.environ['OPENEVOLVE_PARENT_PROGRAM_ID'] = parent.id
+        if parent.metrics:
+            os.environ['OPENEVOLVE_PARENT_METRICS'] = json.dumps(parent.metrics)
+        
+        try:
+            child_metrics = asyncio.run(_worker_evaluator.evaluate_program(child_code, child_id))
+        finally:
+            # Clear parent context and cleanup temp file
+            for var in ['OPENEVOLVE_PARENT_PROGRAM_CODE', 'OPENEVOLVE_PARENT_PROGRAM_ID', 'OPENEVOLVE_PARENT_METRICS', 'OPENEVOLVE_PARENT_PROGRAM_PATH']:
+                os.environ.pop(var, None)
+            
+            # Clean up temporary parent file
+            if parent_temp_file and os.path.exists(parent_temp_file.name):
+                try:
+                    os.unlink(parent_temp_file.name)
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Failed to cleanup temporary parent file {parent_temp_file.name}: {e}")
 
         # Get artifacts
         artifacts = _worker_evaluator.get_pending_artifacts(child_id)

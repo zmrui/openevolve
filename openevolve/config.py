@@ -80,10 +80,10 @@ class LLMConfig(LLMModelConfig):
 
         if self.secondary_model:
             # Create secondary model (only if weight > 0)
-            if not self.secondary_model_weight or self.secondary_model_weight > 0:
+            if self.secondary_model_weight is None or self.secondary_model_weight > 0:
                 secondary_model = LLMModelConfig(
                     name=self.secondary_model,
-                    weight=self.secondary_model_weight or 0.2
+                    weight=self.secondary_model_weight if self.secondary_model_weight is not None else 0.2
                 )
                 self.models.append(secondary_model)
 

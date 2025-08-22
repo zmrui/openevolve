@@ -12,8 +12,8 @@ llm:
   secondary_model_weight: 0.2
   api_base: "https://generativelanguage.googleapis.com/v1beta/openai/"
   # api_base: "https://api.cerebras.ai/v1"
-  temperature: 0.6
-  max_tokens: 10000
+  temperature: 0.7
+  max_tokens: 16000
   timeout: 120
 
 # Prompt configuration
@@ -31,7 +31,7 @@ database:
 # Evaluator configuration
 evaluator:
   timeout: 60
-  cascade_thresholds: [1.45]
+  cascade_thresholds: [1.4]
   parallel_evaluations: 3
 
 # Evolution settings

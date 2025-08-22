@@ -69,7 +69,7 @@ def evaluate(program_path):
             return {
                 "value_score": 0.0,
                 "distance_score": 0.0,
-                "speed_score": 0.0,
+                "reliability_score": 0.0,
                 "combined_score": 0.0,
                 "error": "Missing run_search function",
             }
@@ -162,7 +162,7 @@ def evaluate(program_path):
             return {
                 "value_score": 0.0,
                 "distance_score": 0.0,
-                "speed_score": 0.0,
+                "reliability_score": 0.0,
                 "combined_score": 0.0,
                 "error": "All trials failed",
             }
@@ -173,57 +173,32 @@ def evaluate(program_path):
         avg_time = float(np.mean(times)) if times else 1.0
 
         # Convert to scores (higher is better)
-        value_score = float(1.0 / (1.0 + abs(avg_value - GLOBAL_MIN_VALUE)))  # Normalize and invert
+        value_score = float(1.0 / (1.0 + abs(avg_value - GLOBAL_MIN_VALUE)))
         distance_score = float(1.0 / (1.0 + avg_distance))
-        speed_score = float(1.0 / avg_time) if avg_time > 0 else 0.0
-
-        # calculate standard deviation scores
-        # get x_std_score
-        x_std_score = float(1.0 / (1.0 + np.std(x_values)))
-        # get y_std_score
-        y_std_score = float(1.0 / (1.0 + np.std(y_values)))
-        standard_deviation_score = (x_std_score + y_std_score) / 2.0
-
-        # Normalize speed score (so it doesn't dominate)
-        speed_score = float(min(speed_score, 10.0) / 10.0)
-
+        
         # Add reliability score based on success rate
         reliability_score = float(success_count / num_trials)
 
-        # Calculate a single combined score that prioritizes finding good solutions
-        # over secondary metrics like speed and reliability
-        # Value and distance scores (quality of solution) get 90% of the weight
-        # Speed and reliability get only 10% combined
-        combined_score = float(
-            0.35 * value_score
-            + 0.35 * distance_score
-            + standard_deviation_score * 0.20
-            + 0.05 * speed_score
-            + 0.05 * reliability_score
-        )
-
-        # Also compute an "overall" score that will be the primary metric for selection
-        # This adds a bonus for finding solutions close to the global minimum
-        # and heavily penalizes solutions that aren't finding the right region
-        if distance_to_global < 1.0:  # Very close to the correct solution
-            solution_quality = 1.0
-        elif distance_to_global < 3.0:  # In the right region
-            solution_quality = 0.5
+        # Calculate solution quality based on distance to global minimum
+        if avg_distance < 0.5:  # Very close to the correct solution
+            solution_quality_multiplier = 1.5  # 50% bonus
+        elif avg_distance < 1.5:  # In the right region
+            solution_quality_multiplier = 1.2  # 20% bonus
+        elif avg_distance < 3.0:  # Getting closer
+            solution_quality_multiplier = 1.0  # No adjustment
         else:  # Not finding the right region
-            solution_quality = 0.1
+            solution_quality_multiplier = 0.7  # 30% penalty
 
-        # Overall score is dominated by solution quality but also factors in the combined score
-        overall_score = 0.8 * solution_quality + 0.2 * combined_score
+        # Calculate combined score that prioritizes finding the global minimum
+        # Base score from value and distance, then apply solution quality multiplier
+        base_score = 0.5 * value_score + 0.3 * distance_score + 0.2 * reliability_score
+        combined_score = float(base_score * solution_quality_multiplier)
 
         return {
             "value_score": value_score,
             "distance_score": distance_score,
-            "standard_deviation_score": standard_deviation_score,
-            "speed_score": speed_score,
             "reliability_score": reliability_score,
             "combined_score": combined_score,
-            "overall_score": overall_score,  # This will be the primary selection metric
-            "success_rate": reliability_score,
         }
     except Exception as e:
         print(f"Evaluation failed completely: {str(e)}")
@@ -231,7 +206,7 @@ def evaluate(program_path):
         return {
             "value_score": 0.0,
             "distance_score": 0.0,
-            "speed_score": 0.0,
+            "reliability_score": 0.0,
             "combined_score": 0.0,
             "error": str(e),
         }
@@ -255,7 +230,11 @@ def evaluate_stage1(program_path):
         # Check if the required function exists
         if not hasattr(program, "run_search"):
             print(f"Stage 1 validation: Program does not have 'run_search' function")
-            return {"runs_successfully": 0.0, "error": "Missing run_search function"}
+            return {
+                "runs_successfully": 0.0, 
+                "combined_score": 0.0,
+                "error": "Missing run_search function"
+            }
 
         try:
             # Run a single trial with timeout
@@ -275,10 +254,18 @@ def evaluate_stage1(program_path):
                     print(
                         f"Stage 1: Invalid result format, expected tuple of 2 or 3 values but got {len(result)}"
                     )
-                    return {"runs_successfully": 0.0, "error": "Invalid result format"}
+                    return {
+                        "runs_successfully": 0.0, 
+                        "combined_score": 0.0,
+                        "error": "Invalid result format"
+                    }
             else:
                 print(f"Stage 1: Invalid result format, expected tuple but got {type(result)}")
-                return {"runs_successfully": 0.0, "error": "Invalid result format"}
+                return {
+                    "runs_successfully": 0.0, 
+                    "combined_score": 0.0,
+                    "error": "Invalid result format"
+                }
 
             # Ensure all values are float
             x = safe_float(x)
@@ -295,7 +282,11 @@ def evaluate_stage1(program_path):
                 or np.isinf(value)
             ):
                 print(f"Stage 1 validation: Invalid result, got x={x}, y={y}, value={value}")
-                return {"runs_successfully": 0.5, "error": "Invalid result values"}
+                return {
+                    "runs_successfully": 0.5, 
+                    "combined_score": 0.0,
+                    "error": "Invalid result values"
+                }
 
             # Calculate distance safely
             x_diff = float(x) - GLOBAL_MIN_X
@@ -306,38 +297,59 @@ def evaluate_stage1(program_path):
             value_score = float(1.0 / (1.0 + abs(value - GLOBAL_MIN_VALUE)))
             distance_score = float(1.0 / (1.0 + distance))
 
-            # Calculate solution quality metric
-            if distance < 1.0:  # Very close to the correct solution
-                solution_quality = 1.0
-            elif distance < 3.0:  # In the right region
-                solution_quality = 0.5
+            # Calculate solution quality based on distance to global minimum
+            if distance < 0.5:  # Very close to the correct solution
+                solution_quality_multiplier = 1.4  # 40% bonus
+            elif distance < 1.5:  # In the right region
+                solution_quality_multiplier = 1.15  # 15% bonus
+            elif distance < 3.0:  # Getting closer
+                solution_quality_multiplier = 1.0  # No adjustment
             else:  # Not finding the right region
-                solution_quality = 0.1
+                solution_quality_multiplier = 0.8  # 20% penalty
 
-            # Basic metrics with overall score
+            # Calculate combined score for stage 1
+            base_score = 0.6 * value_score + 0.4 * distance_score
+            combined_score = float(base_score * solution_quality_multiplier)
+
             return {
                 "runs_successfully": 1.0,
                 "value_score": value_score,
                 "distance_score": distance_score,
-                "overall_score": solution_quality,  # This becomes a strong guiding metric
+                "combined_score": combined_score,
             }
         except TimeoutError as e:
             print(f"Stage 1 evaluation timed out: {e}")
-            return {"runs_successfully": 0.0, "error": "Timeout"}
+            return {
+                "runs_successfully": 0.0, 
+                "combined_score": 0.0,
+                "error": "Timeout"
+            }
         except IndexError as e:
             # Specifically handle IndexError which often happens with early termination checks
             print(f"Stage 1 evaluation failed with IndexError: {e}")
             print("This is likely due to a list index check before the list is fully populated.")
-            return {"runs_successfully": 0.0, "error": f"IndexError: {str(e)}"}
+            return {
+                "runs_successfully": 0.0, 
+                "combined_score": 0.0,
+                "error": f"IndexError: {str(e)}"
+            }
         except Exception as e:
             print(f"Stage 1 evaluation failed: {e}")
             print(traceback.format_exc())
-            return {"runs_successfully": 0.0, "error": str(e)}
+            return {
+                "runs_successfully": 0.0, 
+                "combined_score": 0.0,
+                "error": str(e)
+            }
 
     except Exception as e:
         print(f"Stage 1 evaluation failed: {e}")
         print(traceback.format_exc())
-        return {"runs_successfully": 0.0, "error": str(e)}
+        return {
+            "runs_successfully": 0.0, 
+            "combined_score": 0.0,
+            "error": str(e)
+        }
 
 
 def evaluate_stage2(program_path):

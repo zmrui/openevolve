@@ -178,12 +178,26 @@ def _run_iteration_worker(
         iteration_start = time.time()
 
         # Generate code modification (sync wrapper for async)
-        llm_response = asyncio.run(
-            _worker_llm_ensemble.generate_with_context(
-                system_message=prompt["system"],
-                messages=[{"role": "user", "content": prompt["user"]}],
+        try:
+            llm_response = asyncio.run(
+                _worker_llm_ensemble.generate_with_context(
+                    system_message=prompt["system"],
+                    messages=[{"role": "user", "content": prompt["user"]}],
+                )
             )
-        )
+        except Exception as e:
+            logger.error(f"LLM generation failed: {e}")
+            return SerializableResult(
+                error=f"LLM generation failed: {str(e)}", 
+                iteration=iteration
+            )
+
+        # Check for None response
+        if llm_response is None:
+            return SerializableResult(
+                error="LLM returned None response", 
+                iteration=iteration
+            )
 
         # Parse response based on evolution mode
         if _worker_config.diff_based_evolution:

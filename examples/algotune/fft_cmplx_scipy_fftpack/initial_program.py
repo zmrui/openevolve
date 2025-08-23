@@ -24,6 +24,20 @@ Example output:
 
 Category: signal_processing
 
+OPTIMIZATION OPPORTUNITIES:
+Consider these algorithmic improvements for substantial performance gains:
+- Batch FFT processing: Process multiple matrices simultaneously to amortize setup costs
+- Prime-factor algorithms: Use specialized algorithms for non-power-of-2 sizes (mixed-radix FFTs)
+- In-place transforms: Reduce memory allocation overhead by computing FFT in-place
+- Wisdom/planning optimization: Pre-compute optimal FFT strategies (pyfftw.interfaces)
+- JIT compilation: Use JAX's jit-compiled FFT for significant speedups on repeated operations
+- Real-optimized variants: If input has special structure, use rfft variants where applicable
+- Memory layout optimization: Ensure optimal data layout for cache-friendly access patterns
+- Specialized libraries: Consider mkl_fft, pyfftw, or JAX implementations vs scipy.fftpack
+- Hardware acceleration: Leverage SIMD instructions and optimized BLAS implementations
+- Algorithm selection: Choose optimal FFT variant based on input size and characteristics
+- Multi-dimensional optimization: Optimize axis ordering for multi-dimensional transforms
+
 This is the initial implementation that will be evolved by OpenEvolve.
 The solve method will be improved through evolution.
 """

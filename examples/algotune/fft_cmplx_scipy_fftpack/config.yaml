@@ -7,17 +7,17 @@ checkpoint_interval: 10
 log_level: "INFO"
 random_seed: 42
 diff_based_evolution: true  # Best for Gemini models
-max_code_length: 10000
+max_code_length: 20000  # Increased from 10000 for deeper exploration
 
 # LLM Configuration
 llm:
   api_base: "https://openrouter.ai/api/v1"
   models:
-    - name: "openai/o4-mini"
+    - name: "google/gemini-2.5-flash"
       weight: 1.0
   
   temperature: 0.4  # Optimal (better than 0.2, 0.6, 0.8)
-  max_tokens: 16000  # Optimal context
+  max_tokens: 128000  # Increased from 16000 for much richer context
   timeout: 150
   retries: 3
 
@@ -71,8 +71,81 @@ prompt:
     This transformation is crucial in analyzing signals and data with inherent complex properties.
 
     Focus on improving the solve method to correctly handle the input format and produce valid solutions efficiently. Your solution will be compared against the reference AlgoTune baseline implementation to measure speedup and correctness.
-  num_top_programs: 3      # Best balance
-  num_diverse_programs: 2  # Best balance
+    
+    
+    
+
+
+    PERFORMANCE OPTIMIZATION OPPORTUNITIES:
+    You have access to high-performance libraries that can provide significant speedups:
+    
+    • **JAX** - JIT compilation for numerical computations
+      Key insight: Functions should be defined outside classes for JIT compatibility
+      For jnp.roots(), consider using strip_zeros=False in JIT contexts
+    
+    • **Numba** - Alternative JIT compilation, often simpler to use
+    
+    • **scipy optimizations** - Direct BLAS/LAPACK access and specialized algorithms
+      Many scipy functions have optimized implementations worth exploring
+    
+    • **Vectorization** - Look for opportunities to replace loops with array operations
+    
+    EXPLORATION STRATEGY:
+    1. Profile to identify bottlenecks first
+    2. Consider multiple optimization approaches for the same problem
+    3. Try both library-specific optimizations and algorithmic improvements
+    4. Test different numerical libraries to find the best fit
+
+    
+    PROBLEM-SPECIFIC OPTIMIZATION HINTS:
+    Complex 2D FFT operations - PROVEN OPTIMIZATIONS (1.2x speedup achieved):
+    
+    **COMPLEX PRECISION REDUCTION** (Most Effective - 10-20% speedup):
+    • Use complex64 instead of complex128 for FFT computation
+    • Code: problem_64 = problem_array.astype(np.complex64)
+    • Then: result = scipy.fftpack.fftn(problem_64)
+    • Convert back to complex128 after computation for compatibility
+    • This reduces memory bandwidth and leverages faster SIMD operations
+    
+    **MEMORY LAYOUT OPTIMIZATION FOR M4** (5-10% additional speedup):
+    • Use Fortran-ordered arrays for optimal FFTPACK performance
+    • Code: problem_opt = np.asfortranarray(problem.astype(np.complex64))
+    • Detect Apple Silicon: platform.processor() == 'arm' and platform.system() == 'Darwin'
+    • FFTPACK internally uses Fortran routines that benefit from this layout
+    
+    **COMPLETE OPTIMIZED EXAMPLE**:
+    ```python
+    import platform
+    import scipy.fftpack as fftpack
+    
+    IS_APPLE_SILICON = (platform.processor() == 'arm' and platform.system() == 'Darwin')
+    
+    # Convert to complex64 for speed
+    problem_64 = np.array(problem, dtype=np.complex64)
+    
+    if IS_APPLE_SILICON:
+        # Fortran layout for optimal FFTPACK performance
+        problem_64 = np.asfortranarray(problem_64)
+    
+    # Perform FFT with reduced precision
+    result_64 = fftpack.fftn(problem_64)
+    
+    # Convert back to complex128 for precision/compatibility
+    result = result_64.astype(np.complex128)
+    ```
+    
+    **IMPORTANT NOTES**:
+    • scipy.fftpack.fftn is already highly optimized - focus on precision/layout
+    • numpy.fft.fftn is typically slower than scipy.fftpack for this task
+    • The tolerance in is_solution allows for complex64 precision (1e-5)
+    
+    **AVOID**:
+    • JAX/Numba JIT - process overhead exceeds FFT benefits
+    • numpy.fft instead of scipy.fftpack - consistently slower
+    • Complex128 throughout - unnecessary precision for most FFT applications
+    
+  num_top_programs: 10     # Increased from 3-5 for richer learning context
+  num_diverse_programs: 5  # Increased from 2 for more diverse exploration
   include_artifacts: true  # +20.7% improvement
 
 # Database Configuration

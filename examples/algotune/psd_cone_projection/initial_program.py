@@ -48,6 +48,20 @@ Example output:
 
 Category: matrix_operations
 
+OPTIMIZATION OPPORTUNITIES:
+Consider these algorithmic improvements for better performance:
+- Exploit symmetry: Use numpy.linalg.eigh instead of eig for symmetric matrices (more stable and faster)
+- Efficient matrix reconstruction: Use (eigvecs * eigvals) @ eigvecs.T for better vectorization
+- Low-rank approximations: For large matrices, consider truncated eigendecompositions
+- Iterative projection methods: For very large matrices, use iterative algorithms instead of full eigendecomposition
+- Specialized positive eigenvalue handling: Skip eigenvectors with negative eigenvalues in reconstruction
+- JIT compilation: Use JAX or Numba for repeated projections with significant speedup potential
+- Block processing: Handle large matrices in blocks for better memory efficiency
+- Sparse matrix support: Use scipy.sparse.linalg for sparse symmetric matrices
+- Regularization techniques: Add small regularization for numerical stability in edge cases
+- Memory-efficient operations: Minimize temporary array creation and optimize in-place operations
+- Hardware optimization: Leverage optimized LAPACK routines for eigendecomposition
+
 This is the initial implementation that will be evolved by OpenEvolve.
 The solve method will be improved through evolution.
 """

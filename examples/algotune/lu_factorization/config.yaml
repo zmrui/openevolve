@@ -7,17 +7,17 @@ checkpoint_interval: 10
 log_level: "INFO"
 random_seed: 42
 diff_based_evolution: true  # Best for Gemini models
-max_code_length: 10000
+max_code_length: 20000  # Increased from 10000 for deeper exploration
 
 # LLM Configuration
 llm:
   api_base: "https://openrouter.ai/api/v1"
   models:
-    - name: "openai/o4-mini"
+    - name: "google/gemini-2.5-flash"
       weight: 1.0
   
   temperature: 0.4  # Optimal (better than 0.2, 0.6, 0.8)
-  max_tokens: 16000  # Optimal context
+  max_tokens: 128000  # Increased from 16000 for much richer context
   timeout: 150
   retries: 3
 
@@ -72,8 +72,68 @@ prompt:
     where P is a permutation matrix, L is a lower triangular matrix with ones on the diagonal, and U is an upper triangular matrix.
 
     Focus on improving the solve method to correctly handle the input format and produce valid solutions efficiently. Your solution will be compared against the reference AlgoTune baseline implementation to measure speedup and correctness.
-  num_top_programs: 3      # Best balance
-  num_diverse_programs: 2  # Best balance
+    
+    
+    
+
+
+    PERFORMANCE OPTIMIZATION OPPORTUNITIES:
+    You have access to high-performance libraries that can provide significant speedups:
+    
+    • **JAX** - JIT compilation for numerical computations
+      Key insight: Functions should be defined outside classes for JIT compatibility
+      For jnp.roots(), consider using strip_zeros=False in JIT contexts
+    
+    • **Numba** - Alternative JIT compilation, often simpler to use
+    
+    • **scipy optimizations** - Direct BLAS/LAPACK access and specialized algorithms
+      Many scipy functions have optimized implementations worth exploring
+    
+    • **Vectorization** - Look for opportunities to replace loops with array operations
+    
+    EXPLORATION STRATEGY:
+    1. Profile to identify bottlenecks first
+    2. Consider multiple optimization approaches for the same problem
+    3. Try both library-specific optimizations and algorithmic improvements
+    4. Test different numerical libraries to find the best fit
+
+    
+    PROBLEM-SPECIFIC OPTIMIZATION HINTS:
+    LU factorization of matrices - consider:
+    • Direct LAPACK routines for maximum performance
+    • scipy.linalg.lu_factor may be pre-optimized
+    • Blocking strategies for large matrices
+    • Different pivot strategies and memory layouts
+    
+    HARDWARE-SPECIFIC OPTIMIZATIONS:
+    For Apple Silicon (M4/M3/M2/M1) systems, significant performance gains are possible:
+    
+    • **Memory Layout Optimization**: LAPACK routines prefer column-major (Fortran) ordering
+      - Use np.asfortranarray(matrix) before calling scipy.linalg.lu
+      - This leverages Apple's AMX coprocessor through the Accelerate framework
+      - Can provide 5-15% speedup on Apple Silicon systems
+    
+    • **Platform Detection**: Use platform.processor() == 'arm' and platform.system() == 'Darwin'
+      to detect Apple Silicon and apply specific optimizations
+    
+    • **Precision Considerations**: Ensure consistent dtype (float64) for optimal performance
+    
+    • **Apple's Accelerate Framework**: NumPy/SciPy on Apple Silicon can leverage highly
+      optimized BLAS/LAPACK routines in Apple's Accelerate framework when arrays are
+      properly formatted (C-contiguous or Fortran-contiguous as appropriate)
+    
+    Example optimization pattern:
+    ```python
+    import platform
+    IS_APPLE_SILICON = (platform.processor() == 'arm' and platform.system() == 'Darwin')
+    
+    if IS_APPLE_SILICON:
+        A = np.asfortranarray(A.astype(np.float64))  # Optimize for LAPACK
+    P, L, U = scipy.linalg.lu(A)
+    ```
+    
+  num_top_programs: 10     # Increased from 3-5 for richer learning context
+  num_diverse_programs: 5  # Increased from 2 for more diverse exploration
   include_artifacts: true  # +20.7% improvement
 
 # Database Configuration

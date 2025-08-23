@@ -20,6 +20,21 @@ Example output:
 
 Category: numerical_methods
 
+OPTIMIZATION OPPORTUNITIES:
+Consider these algorithmic improvements for substantial performance gains:
+- Companion matrix methods: Alternative eigenvalue-based approach to numpy.roots for better performance
+- Iterative root-finding: Newton-Raphson, Durand-Kerner, or Aberth methods with better convergence
+- JIT compilation: Use JAX with jnp.roots and @jit for massive speedups (200x+ possible)
+- Polynomial structure exploitation: Leverage properties like Chebyshev polynomials or specific forms
+- Deflation techniques: Remove found roots to improve conditioning for remaining roots
+- Initial guess optimization: Better starting points for iterative methods using root bounds
+- Specialized algorithms: Jenkins-Traub algorithm for polynomial root-finding
+- Multiple precision: Use higher precision only when needed for better accuracy
+- Vectorized operations: Process multiple polynomials or roots simultaneously
+- Memory-efficient methods: Avoid unnecessary array copies and intermediate calculations
+- Hybrid approaches: Combine different methods based on polynomial degree or properties
+- Real-root isolation: Use Sturm sequences or Descartes' rule for real-only root finding
+
 This is the initial implementation that will be evolved by OpenEvolve.
 The solve method will be improved through evolution.
 """

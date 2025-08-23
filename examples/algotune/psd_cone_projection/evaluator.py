@@ -17,6 +17,9 @@ import os
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 
+# Import EvaluationResult for artifacts support
+from openevolve.evaluation_result import EvaluationResult
+
 # Add AlgoTune to path for importing reference tasks
 # These paths will be dynamically determined based on the AlgoTune installation
 # The adapter will handle path setup when the evaluator is created
@@ -535,7 +538,10 @@ def evaluate_stage1(program_path, config=None):
 
         # Check if the required function exists
         if not hasattr(program, "run_solver"):
-            return {"runs_successfully": 0.0, "error": "Missing run_solver function"}
+            return EvaluationResult(
+            metrics={"runs_successfully": 0.0},
+            artifacts={"error": "Missing run_solver function", "traceback": traceback.format_exc() if "Missing run_solver function" != "Timeout" else "Timeout occurred"}
+        )
 
         # Get the original task for reference solutions and problem generation
         task_class = None
@@ -558,24 +564,38 @@ def evaluate_stage1(program_path, config=None):
 
             # Basic validity check
             if result is not None:
-                return {
-                    "runs_successfully": 1.0,
-                    "basic_functionality": 1.0,
-                }
+                return EvaluationResult(
+            metrics={
+                "runs_successfully": 1.0,
+                "basic_functionality": 1.0
+            },
+            artifacts={}
+        )
             else:
-                return {
-                    "runs_successfully": 0.5,
-                    "basic_functionality": 0.0,
-                    "error": "Function returned None"
-                }
+                return EvaluationResult(
+            metrics={
+                "runs_successfully": 0.5,
+                "basic_functionality": 0.0
+            },
+            artifacts={"error": "Function returned None", "failure_stage": "stage1"}
+        )
 
         except TimeoutError as e:
-            return {"runs_successfully": 0.0, "error": "Timeout"}
+            return EvaluationResult(
+            metrics={"runs_successfully": 0.0},
+            artifacts={"error": "Timeout", "traceback": traceback.format_exc() if "Timeout" != "Timeout" else "Timeout occurred"}
+        )
         except Exception as e:
-            return {"runs_successfully": 0.0, "error": str(e)}
+            return EvaluationResult(
+            metrics={"runs_successfully": 0.0},
+            artifacts={"error": str(e), "traceback": traceback.format_exc() if str(e) != "Timeout" else "Timeout occurred"}
+        )
 
     except Exception as e:
-        return {"runs_successfully": 0.0, "error": str(e)}
+        return EvaluationResult(
+            metrics={"runs_successfully": 0.0},
+            artifacts={"error": str(e), "traceback": traceback.format_exc() if str(e) != "Timeout" else "Timeout occurred"}
+        )
 
 def evaluate_stage2(program_path, config=None):
     """Second stage evaluation with more thorough testing of the evolved solve method"""

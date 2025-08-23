@@ -35,6 +35,19 @@ Example output:
 
 Category: signal_processing
 
+OPTIMIZATION OPPORTUNITIES:
+Consider these algorithmic improvements for massive performance gains:
+- FFT-based convolution: Use scipy.signal.fftconvolve for O(N²log N) complexity vs O(N⁴) direct convolution
+- Overlap-add/overlap-save methods: For extremely large inputs that don't fit in memory
+- Separable kernels: If the kernel can be decomposed into 1D convolutions (rank-1 factorization)
+- Winograd convolution: For small kernels (3x3, 5x5) with fewer multiplications
+- Direct convolution optimizations: For very small kernels where FFT overhead dominates
+- Zero-padding optimization: Minimal padding strategies to reduce computation
+- Block-based processing: Process in tiles for better cache utilization
+- JIT compilation: Use JAX or Numba for custom convolution implementations
+- Memory layout optimization: Ensure contiguous arrays for better vectorization
+- Multi-threading: Parallel processing of independent output regions
+
 This is the initial implementation that will be evolved by OpenEvolve.
 The solve method will be improved through evolution.
 """

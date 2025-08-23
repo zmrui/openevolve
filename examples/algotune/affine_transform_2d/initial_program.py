@@ -37,6 +37,17 @@ Example output:
 
 Category: signal_processing
 
+OPTIMIZATION OPPORTUNITIES:
+Consider these algorithmic improvements for significant performance gains:
+- Separable transforms: Check if the transformation can be decomposed into separate x and y operations
+- Cache-friendly memory access patterns: Process data in blocks to improve cache utilization
+- Pre-computed interpolation coefficients: For repeated similar transformations
+- Direct coordinate mapping: Avoid intermediate coordinate calculations for simple transforms
+- JIT compilation: Use JAX or Numba for numerical operations that are Python-bottlenecked
+- Batch processing: Process multiple images or regions simultaneously for amortized overhead
+- Alternative interpolation methods: Lower-order interpolation for speed vs quality tradeoffs
+- Hardware optimizations: Leverage SIMD instructions through vectorized operations
+
 This is the initial implementation that will be evolved by OpenEvolve.
 The solve method will be improved through evolution.
 """

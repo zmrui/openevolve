@@ -36,6 +36,20 @@ Example output:
 
 Category: matrix_operations
 
+OPTIMIZATION OPPORTUNITIES:
+Consider these algorithmic improvements for significant performance gains:
+- Structure exploitation: Check for special matrix properties (symmetric, Hermitian, sparse, banded)
+- Iterative methods: Power iteration, inverse iteration, or Lanczos methods for dominant/specific eigenvalues
+- Randomized algorithms: Randomized SVD or eigendecomposition for approximate solutions
+- Block algorithms: Process eigenvalues in groups for better cache utilization
+- Deflation techniques: Remove found eigenvalues to improve conditioning for remaining ones
+- Specialized routines: Use scipy.sparse.linalg for sparse matrices or specific patterns
+- JIT compilation: Use JAX or Numba for custom iterative algorithms
+- Preconditioning: Improve convergence of iterative methods with suitable preconditioners
+- Divide-and-conquer: For symmetric tridiagonal matrices (after reduction)
+- Memory-efficient methods: Avoid full matrix factorizations when possible
+- Hardware optimization: Leverage optimized BLAS/LAPACK implementations
+
 This is the initial implementation that will be evolved by OpenEvolve.
 The solve method will be improved through evolution.
 """

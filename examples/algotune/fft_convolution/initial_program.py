@@ -46,6 +46,20 @@ Notes:
 
 Category: signal_processing
 
+OPTIMIZATION OPPORTUNITIES:
+Consider these algorithmic improvements for optimal performance:
+- Hybrid convolution strategy: Use direct convolution for small signals where FFT overhead dominates
+- Optimal zero-padding: Minimize padding to reduce FFT size while maintaining correctness
+- Overlap-add/overlap-save methods: For very long signals that need memory-efficient processing
+- Batch convolution: Process multiple signal pairs simultaneously for amortized FFT overhead
+- Prime-factor FFT algorithms: Optimize for signal lengths that are not powers of 2
+- In-place FFT operations: Reduce memory allocation by reusing arrays where possible
+- JIT compilation: Use JAX or Numba for custom convolution implementations with significant speedups
+- Real signal optimization: Use rfft when signals are real-valued to halve computation
+- Circular vs linear convolution: Optimize padding strategy based on desired output mode
+- Memory layout optimization: Ensure contiguous arrays for optimal cache performance
+- Specialized libraries: Consider pyfftw or mkl_fft for potentially faster FFT implementations
+
 This is the initial implementation that will be evolved by OpenEvolve.
 The solve method will be improved through evolution.
 """

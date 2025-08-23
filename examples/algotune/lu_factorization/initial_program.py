@@ -37,6 +37,20 @@ Example output:
 
 Category: matrix_operations
 
+OPTIMIZATION OPPORTUNITIES:
+Consider these algorithmic improvements for enhanced performance:
+- Block LU decomposition: Process matrices in blocks for better cache utilization and parallelization
+- Partial vs complete pivoting: Trade stability for speed with different pivoting strategies
+- In-place decomposition: Overwrite input matrix to reduce memory allocation
+- Structure-aware algorithms: Exploit special matrix properties (sparse, banded, symmetric)
+- Iterative refinement: Improve solution accuracy when needed with minimal extra cost
+- Recursive algorithms: Use divide-and-conquer approaches for large matrices
+- JIT compilation: Use JAX or Numba for custom LU implementations with significant speedups
+- BLAS optimization: Ensure use of optimized Level 3 BLAS routines (DGETRF)
+- Threshold pivoting: Use rook pivoting or other advanced strategies for better numerical stability
+- Memory-efficient variants: Minimize data movement and temporary array allocations
+- Alternative factorizations: Consider Cholesky (for positive definite) or QR when applicable
+
 This is the initial implementation that will be evolved by OpenEvolve.
 The solve method will be improved through evolution.
 """

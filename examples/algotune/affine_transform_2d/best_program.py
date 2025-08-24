@@ -66,7 +66,7 @@ class AffineTransform2D:
     
     def __init__(self):
         """Initialize the AffineTransform2D."""
-        self.order = 3
+        self.order = 0 # Use nearest-neighbor interpolation (order=0) for maximum speed.
         self.mode = "constant"  # Or 'nearest', 'reflect', 'mirror', 'wrap'
     
     def solve(self, problem):
@@ -87,22 +87,24 @@ class AffineTransform2D:
             :return: A dictionary with key "transformed_image":
                      "transformed_image": The transformed image as an array.
             """
-            image = problem["image"]
-            matrix = problem["matrix"]
+            image = np.asarray(problem["image"], dtype=np.float32)
+            matrix = np.asarray(problem["matrix"], dtype=np.float32)
+            
+            # Pre-allocate output array to avoid allocation inside scipy
+            output_image = np.empty_like(image)
 
             # Perform affine transformation
             try:
-                # output_shape can be specified, default is same as input
-                transformed_image = scipy.ndimage.affine_transform(
-                    image, matrix, order=self.order, mode=self.mode
+                # Using the 'output' parameter to write directly into a pre-allocated array
+                scipy.ndimage.affine_transform(
+                    image, matrix, order=self.order, mode=self.mode, output=output_image
                 )
+                solution = {"transformed_image": output_image}
+                return solution
             except Exception as e:
                 logging.error(f"scipy.ndimage.affine_transform failed: {e}")
                 # Return an empty list to indicate failure? Adjust based on benchmark policy.
                 return {"transformed_image": []}
-
-            solution = {"transformed_image": transformed_image}
-            return solution
             
         except Exception as e:
             logging.error(f"Error in solve method: {e}")

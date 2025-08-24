@@ -91,18 +91,17 @@ class EigenvectorsComplex:
             """
             A = problem
             eigenvalues, eigenvectors = np.linalg.eig(A)
-            # Zip eigenvalues with corresponding eigenvectors (columns of eigenvectors matrix)
-            pairs = list(zip(eigenvalues, eigenvectors.T))
-            # Sort by descending order of eigenvalue real part, then imaginary part
-            pairs.sort(key=lambda pair: (-pair[0].real, -pair[0].imag))
-            sorted_evecs = []
-            for eigval, vec in pairs:
-                vec_arr = np.array(vec, dtype=complex)
-                norm = np.linalg.norm(vec_arr)
-                if norm > 1e-12:
-                    vec_arr = vec_arr / norm
-                sorted_evecs.append(vec_arr.tolist())
-            return sorted_evecs
+            
+            # Sort eigenvalues and eigenvectors. `lexsort` sorts by the last key first.
+            # We want descending order, so we negate the values.
+            sort_indices = np.lexsort((-eigenvalues.imag, -eigenvalues.real))
+            
+            # Reorder the eigenvectors (which are columns) using the sorted indices.
+            # The eigenvectors from np.linalg.eig are already normalized to unit length.
+            sorted_eigenvectors = eigenvectors[:, sort_indices]
+
+            # Convert the result to a list of lists as per the expected output format.
+            return sorted_eigenvectors.T.tolist()
             
         except Exception as e:
             logging.error(f"Error in solve method: {e}")

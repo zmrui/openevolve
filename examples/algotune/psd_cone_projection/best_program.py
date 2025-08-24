@@ -90,22 +90,19 @@ class PSDConeProjection:
             The solution in the format expected by the task
         """
         try:
-            """
-            Solves a given positive semidefinite cone projection problem.
-
-            Args:
-                problem: A dictionary with problem parameter:
-                    - A: symmetric matrix.
-
-            Returns:
-                A dictionary containing the problem solution:
-                    - X: result of projecting A onto PSD cone.
-            """
-
+            # Extract matrix A from problem dictionary
             A = np.array(problem["A"])
-            eigvals, eigvecs = np.linalg.eig(A)
-            eigvals = np.maximum(eigvals, 0)
-            X = eigvecs @ np.diag(eigvals) @ eigvecs.T
+
+            # Compute eigenvalues and eigenvectors of A
+            # eigh is used for symmetric matrices for stability and performance.
+            eigvals, eigvecs = np.linalg.eigh(A)
+
+            # Project eigenvalues onto the non-negative orthant (clip to 0)
+            np.maximum(eigvals, 0, out=eigvals)
+
+            # Reconstruct the projected matrix X
+            # This uses efficient broadcasting and matrix multiplication.
+            X = (eigvecs * eigvals) @ eigvecs.T
             return {"X": X}
             
         except Exception as e:

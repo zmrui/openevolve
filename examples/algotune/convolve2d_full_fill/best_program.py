@@ -65,29 +65,34 @@ class Convolve2DFullFill:
     def __init__(self):
         """Initialize the Convolve2DFullFill."""
         self.mode = "full"
+        # self.boundary is only used by is_solution, not solve, as fftconvolve handles 'fill' implicitly.
+        # Keeping it for clarity in is_solution's reference.
         self.boundary = "fill"
     
     def solve(self, problem):
         """
-        Solve the convolve2d_full_fill problem.
-        
+        Compute the 2D convolution of arrays a and b using "full" mode and "fill" boundary.
+        Uses scipy.signal.fftconvolve for efficiency, which implicitly handles "fill" boundary.
+
         Args:
-            problem: Dictionary containing problem data specific to convolve2d_full_fill
-                   
+            problem: A tuple (a, b) of 2D arrays.
+
         Returns:
-            The solution in the format expected by the task
+            A 2D array containing the convolution result.
         """
         try:
-            """
-            Compute the 2D convolution of arrays a and b using "full" mode and "fill" boundary.
-
-            :param problem: A tuple (a, b) of 2D arrays.
-            :return: A 2D array containing the convolution result.
-            """
             a, b = problem
-            result = signal.convolve2d(a, b, mode=self.mode, boundary=self.boundary)
+            # Ensure inputs are float32 for potential performance benefits and reduced memory usage.
+            # fftconvolve handles various dtypes, but float32 can be faster on some systems.
+            # Ensure inputs are float32 for potential performance benefits and reduced memory usage.
+            # Avoid unnecessary conversion if already float32 numpy arrays.
+            if not (isinstance(a, np.ndarray) and a.dtype == np.float32):
+                a = np.asarray(a, dtype=np.float32)
+            if not (isinstance(b, np.ndarray) and b.dtype == np.float32):
+                b = np.asarray(b, dtype=np.float32)
+            result = signal.fftconvolve(a, b, mode=self.mode)
             return result
-            
+
         except Exception as e:
             logging.error(f"Error in solve method: {e}")
             raise e
@@ -104,19 +109,13 @@ class Convolve2DFullFill:
             True if the solution is valid, False otherwise
         """
         try:
-            """
-            Check if the 2D convolution solution is valid and optimal.
-
-            A valid solution must match the reference implementation (signal.convolve2d)
-            with "full" mode and "fill" boundary, within a small tolerance.
-
-            :param problem: A tuple (a, b) of 2D arrays.
-            :param solution: The computed convolution result.
-            :return: True if the solution is valid and optimal, False otherwise.
-            """
+            # Check if the 2D convolution solution is valid and optimal.
+            # A valid solution must match the reference implementation (signal.convolve2d)
+            # with "full" mode and "fill" boundary, within a small tolerance.
             a, b = problem
             reference = signal.convolve2d(a, b, mode=self.mode, boundary=self.boundary)
             tol = 1e-6
+            # Use relative error for robustness
             error = np.linalg.norm(solution - reference) / (np.linalg.norm(reference) + 1e-12)
             if error > tol:
                 logging.error(f"Convolve2D solution error {error} exceeds tolerance {tol}.")

@@ -43,7 +43,10 @@ The solve method will be improved through evolution.
 """
 import logging
 import numpy as np
-import scipy.fftpack as fftpack
+import jax
+import jax.numpy as jnp
+
+_jit_fftn = jax.jit(jnp.fft.fftn)
 from numpy.typing import NDArray
 from typing import Any, Dict, List, Optional
 
@@ -53,11 +56,8 @@ class FFTComplexScipyFFTpack:
     This will be evolved by OpenEvolve to improve performance and correctness.
     """
     
-    def __init__(self):
-        """Initialize the FFTComplexScipyFFTpack."""
-        pass
-    
-    def solve(self, problem):
+    @staticmethod
+    def solve(problem):
         """
         Solve the fft_cmplx_scipy_fftpack problem.
         
@@ -69,15 +69,16 @@ class FFTComplexScipyFFTpack:
         """
         try:
             """
-            Compute the N-dimensional FFT using scipy.fftpack.
+            Compute the N-dimensional FFT using a JIT-compiled JAX function.
             """
-            return fftpack.fftn(problem)
+            return _jit_fftn(problem)
             
         except Exception as e:
             logging.error(f"Error in solve method: {e}")
             raise e
     
-    def is_solution(self, problem, solution):
+    @staticmethod
+    def is_solution(problem, solution):
         """
         Check if the provided solution is valid.
         
@@ -122,8 +123,7 @@ def run_solver(problem):
     Returns:
         The solution
     """
-    solver = FFTComplexScipyFFTpack()
-    return solver.solve(problem)
+    return FFTComplexScipyFFTpack.solve(problem)
 
 # EVOLVE-BLOCK-END
 

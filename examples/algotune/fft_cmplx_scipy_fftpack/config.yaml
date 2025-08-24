@@ -7,17 +7,19 @@ checkpoint_interval: 10
 log_level: "INFO"
 random_seed: 42
 diff_based_evolution: true  # Best for Gemini models
-max_code_length: 10000
+max_code_length: 20000  # Increased from 10000 for deeper exploration
 
 # LLM Configuration
 llm:
   api_base: "https://openrouter.ai/api/v1"
   models:
-    - name: "openai/o4-mini"
-      weight: 1.0
+    - name: "google/gemini-2.5-flash"
+      weight: 0.8
+    - name: "google/gemini-2.5-pro"
+      weight: 0.2
   
   temperature: 0.4  # Optimal (better than 0.2, 0.6, 0.8)
-  max_tokens: 16000  # Optimal context
+  max_tokens: 128000  # Increased from 16000 for much richer context
   timeout: 150
   retries: 3
 
@@ -66,13 +68,26 @@ prompt:
 
     This task requires computing the N-dimensional Fast Fourier Transform (FFT) of a complex-valued matrix.  
     The FFT is a mathematical technique that converts data from the spatial (or time) domain into the frequency domain, revealing both the magnitude and phase of the frequency components.  
-    The input is a square matrix of size n×n, where each element is a complex number containing both real and imaginary parts.  
+    The input is a square matrix of size nxn, where each element is a complex number containing both real and imaginary parts.  
     The output is a square matrix of the same size, where each entry is a complex number representing a specific frequency component of the input data, including its amplitude and phase.  
     This transformation is crucial in analyzing signals and data with inherent complex properties.
 
     Focus on improving the solve method to correctly handle the input format and produce valid solutions efficiently. Your solution will be compared against the reference AlgoTune baseline implementation to measure speedup and correctness.
-  num_top_programs: 3      # Best balance
-  num_diverse_programs: 2  # Best balance
+
+    PERFORMANCE OPTIMIZATION OPPORTUNITIES:
+    You have access to high-performance libraries that can provide significant speedups:
+    
+    • **JAX** - JIT compilation for numerical computations
+    
+    • **Numba** - Alternative JIT compilation, often simpler to use
+    
+    • **scipy optimizations** - Direct BLAS/LAPACK access and specialized algorithms
+      Many scipy functions have optimized implementations worth exploring
+    
+    • **Vectorization** - Look for opportunities to replace loops with array operations
+    
+  num_top_programs: 5     # Increased from 3-5 for richer learning context
+  num_diverse_programs: 5  # Increased from 2 for more diverse exploration
   include_artifacts: true  # +20.7% improvement
 
 # Database Configuration
@@ -103,7 +118,7 @@ evaluator:
   cascade_thresholds: [0.5, 0.8]
   
   # Parallel evaluations
-  parallel_evaluations: 1
+  parallel_evaluations: 4
 
 # AlgoTune task-specific configuration
 algotune:

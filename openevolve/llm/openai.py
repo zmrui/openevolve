@@ -75,6 +75,8 @@ class OpenAILLM(LLMInterface):
             "o4-",        # o4-mini
             # GPT-5 series are also reasoning models
             "gpt-5-", "gpt-5"  # gpt-5, gpt-5-mini, gpt-5-nano
+            # The GPT OSS series are also reasoning models
+            "gpt-oss-120b", "gpt-oss-20b"
         )
 
         # Check if this is an OpenAI reasoning model
@@ -105,6 +107,10 @@ class OpenAILLM(LLMInterface):
                 "top_p": kwargs.get("top_p", self.top_p),
                 "max_tokens": kwargs.get("max_tokens", self.max_tokens),
             }
+
+            # Handle reasoning_effort for open source reasoning models.
+            if "reasoning_effort" in kwargs:
+                params["reasoning_effort"] = kwargs["reasoning_effort"]
 
         # Add seed parameter for reproducibility if configured
         # Skip seed parameter for Google AI Studio endpoint as it doesn't support it

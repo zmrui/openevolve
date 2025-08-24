@@ -14,7 +14,9 @@ llm:
   api_base: "https://openrouter.ai/api/v1"
   models:
     - name: "google/gemini-2.5-flash"
-      weight: 1.0
+      weight: 0.8
+    - name: "google/gemini-2.5-pro"
+      weight: 0.2
   
   temperature: 0.4  # Optimal (better than 0.2, 0.6, 0.8)
   max_tokens: 128000  # Increased from 16000 for much richer context
@@ -70,17 +72,11 @@ prompt:
     The output is a 2D array representing the convolution result.
 
     Focus on improving the solve method to correctly handle the input format and produce valid solutions efficiently. Your solution will be compared against the reference AlgoTune baseline implementation to measure speedup and correctness.
-    
-    
-    
-
 
     PERFORMANCE OPTIMIZATION OPPORTUNITIES:
     You have access to high-performance libraries that can provide significant speedups:
     
     • **JAX** - JIT compilation for numerical computations
-      Key insight: Functions should be defined outside classes for JIT compatibility
-      For jnp.roots(), consider using strip_zeros=False in JIT contexts
     
     • **Numba** - Alternative JIT compilation, often simpler to use
     
@@ -89,21 +85,7 @@ prompt:
     
     • **Vectorization** - Look for opportunities to replace loops with array operations
     
-    EXPLORATION STRATEGY:
-    1. Profile to identify bottlenecks first
-    2. Consider multiple optimization approaches for the same problem
-    3. Try both library-specific optimizations and algorithmic improvements
-    4. Test different numerical libraries to find the best fit
-
-    
-    PROBLEM-SPECIFIC OPTIMIZATION HINTS:
-    This task involves 2D convolution in 'full' mode - consider:
-    • FFT-based convolution algorithms (O(n log n) vs O(n²))
-    • scipy.signal functions may have optimized implementations
-    • JAX also has FFT operations if JIT compilation benefits outweigh library optimizations
-    • Memory layout and padding strategies can impact performance
-    
-  num_top_programs: 10     # Increased from 3-5 for richer learning context
+  num_top_programs: 5     # Increased from 3-5 for richer learning context
   num_diverse_programs: 5  # Increased from 2 for more diverse exploration
   include_artifacts: true  # +20.7% improvement
 
@@ -135,7 +117,7 @@ evaluator:
   cascade_thresholds: [0.5, 0.8]
   
   # Parallel evaluations
-  parallel_evaluations: 1
+  parallel_evaluations: 4
 
 # AlgoTune task-specific configuration
 algotune:

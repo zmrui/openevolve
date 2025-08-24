@@ -14,7 +14,9 @@ llm:
   api_base: "https://openrouter.ai/api/v1"
   models:
     - name: "google/gemini-2.5-flash"
-      weight: 1.0
+      weight: 0.8
+    - name: "google/gemini-2.5-pro"
+      weight: 0.2
   
   temperature: 0.4  # Optimal (better than 0.2, 0.6, 0.8)
   max_tokens: 128000  # Increased from 16000 for much richer context
@@ -76,17 +78,11 @@ prompt:
       - eigenvectors is an array of n eigenvectors, each of length n, representing the eigenvector corresponding to the eigenvalue at the same index.
 
     Focus on improving the solve method to correctly handle the input format and produce valid solutions efficiently. Your solution will be compared against the reference AlgoTune baseline implementation to measure speedup and correctness.
-    
-    
-    
-
 
     PERFORMANCE OPTIMIZATION OPPORTUNITIES:
     You have access to high-performance libraries that can provide significant speedups:
     
     • **JAX** - JIT compilation for numerical computations
-      Key insight: Functions should be defined outside classes for JIT compatibility
-      For jnp.roots(), consider using strip_zeros=False in JIT contexts
     
     • **Numba** - Alternative JIT compilation, often simpler to use
     
@@ -95,60 +91,7 @@ prompt:
     
     • **Vectorization** - Look for opportunities to replace loops with array operations
     
-    EXPLORATION STRATEGY:
-    1. Profile to identify bottlenecks first
-    2. Consider multiple optimization approaches for the same problem
-    3. Try both library-specific optimizations and algorithmic improvements
-    4. Test different numerical libraries to find the best fit
-
-    
-    PROBLEM-SPECIFIC OPTIMIZATION HINTS:
-    Computing eigenvectors of complex matrices - PROVEN OPTIMIZATIONS (1.4x speedup achieved):
-    
-    **KEY INSIGHT**: The input matrix is REAL (not complex), but the original algorithm treats it as complex.
-    Post-processing (sorting/normalization) can be heavily optimized.
-    
-    **VECTORIZED POST-PROCESSING** (Most Effective - 35% speedup):
-    • Use numpy.argsort instead of Python's sort for eigenvalue ordering
-    • Vectorize normalization using broadcasting instead of loops
-    • Use advanced indexing to avoid memory copies
-    
-    **OPTIMIZED IMPLEMENTATION**:
-    ```python
-    # Use numpy.linalg.eig (faster than scipy for small/medium matrices)
-    eigenvalues, eigenvectors = np.linalg.eig(A)
-    
-    # VECTORIZED SORTING: Use numpy.lexsort (much faster than Python sort)
-    sort_indices = np.lexsort((-eigenvalues.imag, -eigenvalues.real))
-    sorted_eigenvectors = eigenvectors[:, sort_indices]  # No copying
-    
-    # VECTORIZED NORMALIZATION: All columns at once
-    norms = np.linalg.norm(sorted_eigenvectors, axis=0)
-    valid_mask = norms > 1e-12
-    sorted_eigenvectors[:, valid_mask] /= norms[valid_mask]
-    
-    # EFFICIENT CONVERSION: Use .T.tolist() instead of Python loops
-    return sorted_eigenvectors.T.tolist()
-    ```
-    
-    **MEMORY LAYOUT OPTIMIZATION** (5-10% additional on M4):
-    • Use C-contiguous arrays for numpy.linalg.eig
-    • Code: A = np.ascontiguousarray(A.astype(np.float64))
-    • Detect Apple Silicon: platform.processor() == 'arm' and platform.system() == 'Darwin'
-    
-    **KEY OPTIMIZATIONS**:
-    • Replace Python loops with numpy vectorized operations
-    • Eliminate list() and zip() operations in sorting
-    • Use advanced indexing instead of creating copies
-    • Stay in numpy throughout, convert to list only at the end
-    
-    **AVOID**:
-    • Python sorting with lambda functions - extremely slow
-    • eigenvectors.T - creates unnecessary matrix copy
-    • Loop-based normalization - vectorize instead
-    • scipy.linalg.eig for small matrices - has more overhead than numpy
-    
-  num_top_programs: 10     # Increased from 3-5 for richer learning context
+  num_top_programs: 5     # Increased from 3-5 for richer learning context
   num_diverse_programs: 5  # Increased from 2 for more diverse exploration
   include_artifacts: true  # +20.7% improvement
 
@@ -180,7 +123,7 @@ evaluator:
   cascade_thresholds: [0.5, 0.8]
   
   # Parallel evaluations
-  parallel_evaluations: 1
+  parallel_evaluations: 4
 
 # AlgoTune task-specific configuration
 algotune:

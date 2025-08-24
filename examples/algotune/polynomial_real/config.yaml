@@ -14,7 +14,9 @@ llm:
   api_base: "https://openrouter.ai/api/v1"
   models:
     - name: "google/gemini-2.5-flash"
-      weight: 1.0
+      weight: 0.8
+    - name: "google/gemini-2.5-pro"
+      weight: 0.2
   
   temperature: 0.4  # Optimal (better than 0.2, 0.6, 0.8)
   max_tokens: 128000  # Increased from 16000 for much richer context
@@ -69,17 +71,13 @@ prompt:
     A given solution's distance is said to be the average absolute difference between the approximated roots and the true roots.
 
     Focus on improving the solve method to correctly handle the input format and produce valid solutions efficiently. Your solution will be compared against the reference AlgoTune baseline implementation to measure speedup and correctness.
-    
-    
-    
-
 
     PERFORMANCE OPTIMIZATION OPPORTUNITIES:
     You have access to high-performance libraries that can provide significant speedups:
     
-    • **JAX** - JIT compilation for numerical computations
-      Key insight: Functions should be defined outside classes for JIT compatibility
-      For jnp.roots(), consider using strip_zeros=False in JIT contexts
+    • **JAX** - JIT compilation for numerical computations that can provide 100x+ speedups
+      JAX offers drop-in NumPy replacements (jax.numpy) that work with JIT compilation
+      Works best with pure functions (no side effects) and may require code restructuring
     
     • **Numba** - Alternative JIT compilation, often simpler to use
     
@@ -93,16 +91,8 @@ prompt:
     2. Consider multiple optimization approaches for the same problem
     3. Try both library-specific optimizations and algorithmic improvements
     4. Test different numerical libraries to find the best fit
-
-    
-    PROBLEM-SPECIFIC OPTIMIZATION HINTS:
-    Finding real roots of polynomials - consider:
-    • Vectorized root-finding algorithms
-    • JIT compilation for repeated polynomial operations
-    • Alternative algorithms beyond standard numpy.roots
-    • Opportunities for batch processing multiple polynomials
-    
-  num_top_programs: 10     # Increased from 3-5 for richer learning context
+  
+  num_top_programs: 5     # Increased from 3-5 for richer learning context
   num_diverse_programs: 5  # Increased from 2 for more diverse exploration
   include_artifacts: true  # +20.7% improvement
 
@@ -126,7 +116,7 @@ database:
 
 # Evaluator Configuration
 evaluator:
-  timeout: 200
+  timeout: 600  # Increased from 200 to handle JAX compilation
   max_retries: 3
   
   # Cascade evaluation
@@ -134,7 +124,7 @@ evaluator:
   cascade_thresholds: [0.5, 0.8]
   
   # Parallel evaluations
-  parallel_evaluations: 1
+  parallel_evaluations: 1  # Reduced from 4 to avoid JAX compilation conflicts
 
 # AlgoTune task-specific configuration
 algotune:

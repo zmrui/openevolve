@@ -14,7 +14,9 @@ llm:
   api_base: "https://openrouter.ai/api/v1"
   models:
     - name: "google/gemini-2.5-flash"
-      weight: 1.0
+      weight: 0.8
+    - name: "google/gemini-2.5-pro"
+      weight: 0.2
   
   temperature: 0.4  # Optimal (better than 0.2, 0.6, 0.8)
   max_tokens: 128000  # Increased from 16000 for much richer context
@@ -64,8 +66,6 @@ prompt:
     The problem description is:
     Positive Semidefinite Cone Projection Problem
 
-
-
     The goal of this task is to compute the projection of given symmetric matrix onto the cone of symmetric positive semidefinite matrices, which we will refer to as PSD cone. Then the optimization problem to be solved becomes:
 
         minimize    |A - X|^2
@@ -84,17 +84,11 @@ prompt:
     where lambda_i is an i-th eigenvalue of A and u_i is an eigenvector corresponding to...
 
     Focus on improving the solve method to correctly handle the input format and produce valid solutions efficiently. Your solution will be compared against the reference AlgoTune baseline implementation to measure speedup and correctness.
-    
-    
-    
-
 
     PERFORMANCE OPTIMIZATION OPPORTUNITIES:
     You have access to high-performance libraries that can provide significant speedups:
     
     • **JAX** - JIT compilation for numerical computations
-      Key insight: Functions should be defined outside classes for JIT compatibility
-      For jnp.roots(), consider using strip_zeros=False in JIT contexts
     
     • **Numba** - Alternative JIT compilation, often simpler to use
     
@@ -108,16 +102,8 @@ prompt:
     2. Consider multiple optimization approaches for the same problem
     3. Try both library-specific optimizations and algorithmic improvements
     4. Test different numerical libraries to find the best fit
-
     
-    PROBLEM-SPECIFIC OPTIMIZATION HINTS:
-    Projecting onto positive semidefinite cone - consider:
-    • Eigenvalue decomposition optimizations (eigh vs eig for symmetric matrices)
-    • Early termination for matrices that are already PSD
-    • BLAS operations for matrix multiplication steps
-    • Memory-efficient eigenvalue computations
-    
-  num_top_programs: 10     # Increased from 3-5 for richer learning context
+  num_top_programs: 5     # Increased from 3-5 for richer learning context
   num_diverse_programs: 5  # Increased from 2 for more diverse exploration
   include_artifacts: true  # +20.7% improvement
 
@@ -149,7 +135,7 @@ evaluator:
   cascade_thresholds: [0.5, 0.8]
   
   # Parallel evaluations
-  parallel_evaluations: 1
+  parallel_evaluations: 4
 
 # AlgoTune task-specific configuration
 algotune:

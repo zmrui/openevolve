@@ -14,7 +14,9 @@ llm:
   api_base: "https://openrouter.ai/api/v1"
   models:
     - name: "google/gemini-2.5-flash"
-      weight: 1.0
+      weight: 0.8
+    - name: "google/gemini-2.5-pro"
+      weight: 0.2
   
   temperature: 0.4  # Optimal (better than 0.2, 0.6, 0.8)
   max_tokens: 128000  # Increased from 16000 for much richer context
@@ -71,17 +73,11 @@ prompt:
     Using the FFT approach exploits the fact that convolution in the time domain is equivalent to multiplication in the frequency domain, which provides a more efficient computation for large signals.
 
     Focus on improving the solve method to correctly handle the input format and produce valid solutions efficiently. Your solution will be compared against the reference AlgoTune baseline implementation to measure speedup and correctness.
-    
-    
-    
-
 
     PERFORMANCE OPTIMIZATION OPPORTUNITIES:
     You have access to high-performance libraries that can provide significant speedups:
     
     • **JAX** - JIT compilation for numerical computations
-      Key insight: Functions should be defined outside classes for JIT compatibility
-      For jnp.roots(), consider using strip_zeros=False in JIT contexts
     
     • **Numba** - Alternative JIT compilation, often simpler to use
     
@@ -90,38 +86,7 @@ prompt:
     
     • **Vectorization** - Look for opportunities to replace loops with array operations
     
-    EXPLORATION STRATEGY:
-    1. Profile to identify bottlenecks first
-    2. Consider multiple optimization approaches for the same problem
-    3. Try both library-specific optimizations and algorithmic improvements
-    4. Test different numerical libraries to find the best fit
-
-    
-    PROBLEM-SPECIFIC OPTIMIZATION HINTS:
-    1D FFT-based convolution - Key optimization opportunities discovered:
-    
-    **PRECISION OPTIMIZATION** (Most Effective):
-    • Use float32 precision for ~10% speedup with acceptable accuracy loss
-    • Convert inputs with: np.asarray(signal, dtype=np.float32)
-    • This leverages faster SIMD operations on modern CPUs
-    
-    **SIZE-BASED ALGORITHM SELECTION**:
-    • For very small arrays (total_size < 16), direct convolution is faster:
-      result = np.convolve(x.astype(np.float32), y.astype(np.float32))
-    • For larger arrays, FFT convolution remains optimal
-    • Consider using scipy.signal.fftconvolve with optimized inputs
-    
-    **APPLE SILICON M4 OPTIMIZATIONS** (if detected):
-    • Use C-contiguous arrays: np.ascontiguousarray(signal.astype(np.float32))
-    • Apple's Accelerate framework optimizes these memory layouts
-    • Detect with: platform.processor() == 'arm' and platform.system() == 'Darwin'
-    
-    **AVOID**:
-    • Complex JIT compilation (Numba/JAX) - causes process overhead
-    • pyFFTW - adds import overhead without consistent speedup
-    • Multiple precision conversions - pick one and stick with it
-    
-  num_top_programs: 10     # Increased from 3-5 for richer learning context
+  num_top_programs: 5     # Increased from 3-5 for richer learning context
   num_diverse_programs: 5  # Increased from 2 for more diverse exploration
   include_artifacts: true  # +20.7% improvement
 
@@ -153,7 +118,7 @@ evaluator:
   cascade_thresholds: [0.5, 0.8]
   
   # Parallel evaluations
-  parallel_evaluations: 1
+  parallel_evaluations: 4
 
 # AlgoTune task-specific configuration
 algotune:

@@ -14,7 +14,9 @@ llm:
   api_base: "https://openrouter.ai/api/v1"
   models:
     - name: "google/gemini-2.5-flash"
-      weight: 1.0
+      weight: 0.8
+    - name: "google/gemini-2.5-pro"
+      weight: 0.2
   
   temperature: 0.4  # Optimal (better than 0.2, 0.6, 0.8)
   max_tokens: 128000  # Increased from 16000 for much richer context
@@ -68,16 +70,10 @@ prompt:
 
     Focus on improving the solve method to correctly handle the input format and produce valid solutions efficiently. Your solution will be compared against the reference AlgoTune baseline implementation to measure speedup and correctness.
     
-    
-    
-
-
     PERFORMANCE OPTIMIZATION OPPORTUNITIES:
     You have access to high-performance libraries that can provide significant speedups:
     
     • **JAX** - JIT compilation for numerical computations
-      Key insight: Functions should be defined outside classes for JIT compatibility
-      For jnp.roots(), consider using strip_zeros=False in JIT contexts
     
     • **Numba** - Alternative JIT compilation, often simpler to use
     
@@ -86,59 +82,7 @@ prompt:
     
     • **Vectorization** - Look for opportunities to replace loops with array operations
     
-    EXPLORATION STRATEGY:
-    1. Profile to identify bottlenecks first
-    2. Consider multiple optimization approaches for the same problem
-    3. Try both library-specific optimizations and algorithmic improvements
-    4. Test different numerical libraries to find the best fit
-
-    
-    PROBLEM-SPECIFIC OPTIMIZATION HINTS:
-    2D affine transformations - PROVEN OPTIMIZATIONS (2.3x speedup achieved):
-    
-    **INTERPOLATION ORDER REDUCTION** (Most Effective - 30-40% speedup):
-    • Use order=1 (linear) instead of order=3 (cubic) for scipy.ndimage.affine_transform
-    • Linear interpolation is often sufficient for most transformations
-    • Code: scipy.ndimage.affine_transform(image, matrix, order=1, mode="constant")
-    • The accuracy loss is minimal for most image transformations
-    
-    **PRECISION OPTIMIZATION** (20-30% speedup):
-    • Convert images to float32 instead of float64
-    • Code: image_float32 = image.astype(np.float32)
-    • This leverages faster SIMD operations and reduces memory bandwidth
-    • Combine with order=1 for maximum benefit
-    
-    **APPLE SILICON M4 OPTIMIZATIONS** (5-10% additional speedup):
-    • Use C-contiguous arrays for image processing
-    • Code: image = np.ascontiguousarray(image.astype(np.float32))
-    • Detect with: platform.processor() == 'arm' and platform.system() == 'Darwin'
-    • Apple's Accelerate framework optimizes spline interpolation for these layouts
-    
-    **COMPLETE OPTIMIZED EXAMPLE**:
-    ```python
-    import platform
-    IS_APPLE_SILICON = (platform.processor() == 'arm' and platform.system() == 'Darwin')
-    
-    # Convert to float32 for speed
-    image_float32 = image.astype(np.float32)
-    matrix_float32 = matrix.astype(np.float32)
-    
-    if IS_APPLE_SILICON:
-        image_float32 = np.ascontiguousarray(image_float32)
-        matrix_float32 = np.ascontiguousarray(matrix_float32)
-    
-    # Use order=1 (linear) instead of order=3 (cubic)
-    transformed = scipy.ndimage.affine_transform(
-        image_float32, matrix_float32, order=1, mode="constant"
-    )
-    ```
-    
-    **AVOID**:
-    • Complex JIT compilation (JAX/Numba) - overhead exceeds benefits for this task
-    • OpenCV - adds dependency without consistent performance gain
-    • Order=3 (cubic) interpolation unless accuracy is critical
-    
-  num_top_programs: 10     # Increased from 3-5 for richer learning context
+  num_top_programs: 5     # Increased from 3-5 for richer learning context
   num_diverse_programs: 5  # Increased from 2 for more diverse exploration
   include_artifacts: true  # +20.7% improvement
 
@@ -170,7 +114,7 @@ evaluator:
   cascade_thresholds: [0.5, 0.8]
   
   # Parallel evaluations
-  parallel_evaluations: 1
+  parallel_evaluations: 4
 
 # AlgoTune task-specific configuration
 algotune:

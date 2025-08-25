@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="openevolve-logo.png" alt="OpenEvolve Logo" width="200">
+<img src="openevolve-logo.png" alt="OpenEvolve Logo" width="320">
 
 **🧬 The most advanced open-source evolutionary coding agent**
 
@@ -648,18 +648,6 @@ Just set the `api_base` in your config to point to your endpoint.
 
 </details>
 
-## 💬 Discussions
-
-<p align="center">
-  <a href="https://github.com/codelion/openevolve/discussions">💬 Discussions</a>
-</p>
-
-<div align="center">
-
-**Join the conversation! Share your results, ask questions, and collaborate with other OpenEvolve users.**
-
-</div>
-
 ### 🌟 **Contributors**
 
 Thanks to all our amazing contributors who make OpenEvolve possible!
@@ -681,76 +669,12 @@ We welcome contributions! Here's how to get started:
 
 **New to open source?** Check out our [Contributing Guide](CONTRIBUTING.md) and look for [`good-first-issue`](https://github.com/codelion/openevolve/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) labels!
 
-## 🎯 Use Cases & Success Stories
-
-### 🏭 **Industry Applications**
-
-<details>
-<summary><b>🎮 Gaming & Graphics</b></summary>
-
-**GPU Shader Optimization**:
-- Metal shader evolution for Apple Silicon
-- CUDA kernel optimization for NVIDIA
-- WebGL fragment shader performance
-
-**Results**: 2-5x performance improvements across different GPU architectures.
-
-</details>
-
-<details>
-<summary><b>💊 Scientific Research</b></summary>
-
-**Computational Biology**:
-- Protein folding algorithm optimization
-- Drug discovery pathway analysis
-- Genomic sequence analysis
-
-**Mathematical Discovery**:
-- Symbolic regression on experimental data
-- Novel optimization algorithm discovery
-- Automated theorem proving assistance
-
-</details>
-
-<details>
-<summary><b>🏎️ Performance Engineering</b></summary>
-
-**High-Performance Computing**:
-- Parallel algorithm optimization
-- Memory access pattern improvement
-- Cache-aware data structure design
-
-**Web Performance**:
-- JavaScript bundle optimization
-- Database query evolution
-- API response time minimization
-
-</details>
-
 ### 📚 **Academic & Research**
 
 **Articles & Blog Posts About OpenEvolve**:
 - [Towards Open Evolutionary Agents](https://huggingface.co/blog/driaforall/towards-open-evolutionary-agents) - Evolution of coding agents and the open-source movement
 - [OpenEvolve: GPU Kernel Discovery](https://huggingface.co/blog/codelion/openevolve-gpu-kernel-discovery) - Automated discovery of optimized GPU kernels with 2-3x speedups
 - [OpenEvolve: Evolutionary Coding with LLMs](https://huggingface.co/blog/codelion/openevolve) - Introduction to evolutionary algorithm discovery using large language models
-
-## 🙏 Acknowledgments
-
-### **Inspiration & Foundation**
-
-OpenEvolve builds upon groundbreaking research from:
-
-- **DeepMind AlphaEvolve**: Original evolutionary coding research
-- **MAP-Elites Algorithm**: Quality-diversity optimization framework  
-- **OpenAI**: GPT models and API infrastructure
-
-### **Contributors & Community**
-
-Special thanks to:
-- Early adopters who provided feedback and bug reports
-- Contributors who added features and fixed issues  
-- Researchers who shared their use cases and results
-- Community members who help others in discussions
 
 ## 📊 Citation
 

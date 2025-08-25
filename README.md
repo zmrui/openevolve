@@ -1,5 +1,13 @@
 # OpenEvolve
 
+<div align="center">
+
+<img src="openevolve-logo.png" alt="OpenEvolve Logo" width="200">
+
+**🧬 The most advanced open-source evolutionary coding agent**
+
+*Turn your LLMs into autonomous code optimizers that discover breakthrough algorithms*
+
 <p align="center">
   <a href="https://github.com/codelion/openevolve/stargazers"><img src="https://img.shields.io/github/stars/codelion/openevolve?style=social" alt="GitHub stars"></a>
   <a href="https://pypi.org/project/openevolve/"><img src="https://img.shields.io/pypi/v/openevolve" alt="PyPI version"></a>
@@ -7,15 +15,7 @@
   <a href="https://github.com/codelion/openevolve/blob/main/LICENSE"><img src="https://img.shields.io/github/license/codelion/openevolve" alt="License"></a>
 </p>
 
-<div align="center">
-
-**🧬 The most advanced open-source evolutionary coding agent**
-
-*Turn your LLMs into autonomous code optimizers that discover breakthrough algorithms*
-
 [🚀 **Quick Start**](#-quick-start) • [📖 **Examples**](#-examples-gallery) • [💬 **Discussions**](https://github.com/codelion/openevolve/discussions)
-
-![OpenEvolve Logo](openevolve-logo.png)
 
 *From random search to state-of-the-art: Watch your code evolve in real-time*
 

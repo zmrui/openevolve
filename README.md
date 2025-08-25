@@ -552,7 +552,6 @@ python scripts/visualizer.py --path examples/function_minimization/openevolve_ou
 - [ ] **Multi-Modal Evolution**: Images, audio, and text simultaneously
 - [ ] **Federated Learning**: Distributed evolution across multiple machines  
 - [ ] **AutoML Integration**: Hyperparameter and architecture evolution
-- [ ] **Code Review AI**: Automated pull request optimization
 - [ ] **Benchmark Suite**: Standardized evaluation across domains
 
 ### **🌟 Research Directions**

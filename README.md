@@ -13,7 +13,7 @@
 
 *Turn your LLMs into autonomous code optimizers that discover breakthrough algorithms*
 
-[🚀 **Quick Start**](#-quick-start) • [📖 **Examples**](#-examples-gallery) • [📚 **Documentation**](https://openevolve.readthedocs.io/) • [💬 **Discussions**](#-discussions)
+[🚀 **Quick Start**](#-quick-start) • [📖 **Examples**](#-examples-gallery) • [💬 **Discussions**](https://github.com/codelion/openevolve/discussions)
 
 ![OpenEvolve Logo](openevolve-logo.png)
 

@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="openevolve-logo.png" alt="OpenEvolve Logo" width="320">
+<img src="openevolve-logo.png" alt="OpenEvolve Logo" width="400">
 
 **🧬 The most advanced open-source evolutionary coding agent**
 

@@ -159,20 +159,7 @@ kernel void attention_evolved(/* ... */) {
 
 OpenEvolve implements a sophisticated **evolutionary coding pipeline** that goes far beyond simple optimization:
 
-<div align="center">
-
-```mermaid
-graph TB
-    A[Initial Program] --> B[LLM Ensemble]
-    B --> C[Quality-Diversity Evolution]
-    C --> D[Multi-Stage Evaluation]
-    D --> E[Program Database]
-    E --> F[Island Migration]
-    F --> B
-    E --> G[Best Program]
-```
-
-</div>
+![OpenEvolve Architecture](openevolve-architecture.png)
 
 ### 🎯 **Core Innovation**: MAP-Elites + LLMs
 

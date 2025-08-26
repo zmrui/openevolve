@@ -425,6 +425,17 @@ class ProcessParallelController:
         # Island management
         programs_per_island = max(1, max_iterations // (self.config.database.num_islands * 10))
         current_island_counter = 0
+        
+        # Early stopping tracking
+        early_stopping_enabled = self.config.early_stopping_patience is not None
+        if early_stopping_enabled:
+            best_score = float('-inf')
+            iterations_without_improvement = 0
+            logger.info(f"Early stopping enabled: patience={self.config.early_stopping_patience}, "
+                       f"threshold={self.config.convergence_threshold}, "
+                       f"metric={self.config.early_stopping_metric}")
+        else:
+            logger.info("Early stopping disabled")
 
         # Process results as they complete
         while (
@@ -560,6 +571,41 @@ class ProcessParallelController:
                             if avg_score >= target_score:
                                 logger.info(
                                     f"Target score {target_score} reached at iteration {completed_iteration}"
+                                )
+                                break
+
+                    # Check early stopping
+                    if early_stopping_enabled and child_program.metrics:
+                        # Get the metric to track for early stopping
+                        current_score = None
+                        if self.config.early_stopping_metric in child_program.metrics:
+                            current_score = child_program.metrics[self.config.early_stopping_metric]
+                        else:
+                            # Fall back to average of numeric metrics if specified metric doesn't exist
+                            numeric_metrics = [
+                                v for v in child_program.metrics.values() 
+                                if isinstance(v, (int, float)) and not isinstance(v, bool)
+                            ]
+                            if numeric_metrics:
+                                current_score = sum(numeric_metrics) / len(numeric_metrics)
+
+                        if current_score is not None and isinstance(current_score, (int, float)):
+                            # Check for improvement
+                            improvement = current_score - best_score
+                            if improvement >= self.config.convergence_threshold:
+                                best_score = current_score
+                                iterations_without_improvement = 0
+                                logger.debug(f"New best score: {best_score:.4f} (improvement: {improvement:+.4f})")
+                            else:
+                                iterations_without_improvement += 1
+                                logger.debug(f"No improvement: {iterations_without_improvement}/{self.config.early_stopping_patience}")
+
+                            # Check if we should stop
+                            if iterations_without_improvement >= self.config.early_stopping_patience:
+                                logger.info(
+                                    f"Early stopping triggered at iteration {completed_iteration}: "
+                                    f"No improvement for {iterations_without_improvement} iterations "
+                                    f"(best score: {best_score:.4f})"
                                 )
                                 break
 

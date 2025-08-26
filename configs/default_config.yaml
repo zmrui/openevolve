@@ -13,6 +13,11 @@ random_seed: 42                       # Random seed for reproducibility (null = 
 diff_based_evolution: true            # Use diff-based evolution (true) or full rewrites (false)
 max_code_length: 10000                # Maximum allowed code length in characters
 
+# Early stopping settings
+early_stopping_patience: null         # Stop after N iterations without improvement (null = disabled)
+convergence_threshold: 0.001          # Minimum improvement required to reset patience counter
+early_stopping_metric: "combined_score"  # Metric to track for early stopping
+
 # LLM configuration
 llm:
   # Models for evolution

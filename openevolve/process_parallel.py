@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from openevolve.config import Config
 from openevolve.database import Program, ProgramDatabase
+from openevolve.utils.metrics_utils import safe_numeric_average
 
 logger = logging.getLogger(__name__)
 
@@ -145,8 +146,6 @@ def _run_iteration_worker(
         ]
 
         # Sort by metrics for top programs
-        from openevolve.utils.metrics_utils import safe_numeric_average
-
         island_programs.sort(
             key=lambda p: p.metrics.get("combined_score", safe_numeric_average(p.metrics)),
             reverse=True,
@@ -530,8 +529,6 @@ class ProcessParallelController:
                             "combined_score" not in child_program.metrics
                             and not self._warned_about_combined_score
                         ):
-                            from openevolve.utils.metrics_utils import safe_numeric_average
-
                             avg_score = safe_numeric_average(child_program.metrics)
                             logger.warning(
                                 f"⚠️  No 'combined_score' metric found in evaluation results. "
@@ -580,14 +577,13 @@ class ProcessParallelController:
                         current_score = None
                         if self.config.early_stopping_metric in child_program.metrics:
                             current_score = child_program.metrics[self.config.early_stopping_metric]
+                        elif self.config.early_stopping_metric == "combined_score":
+                            # Default metric not found, use safe average (standard pattern)
+                            current_score = safe_numeric_average(child_program.metrics)
                         else:
-                            # Fall back to average of numeric metrics if specified metric doesn't exist
-                            numeric_metrics = [
-                                v for v in child_program.metrics.values() 
-                                if isinstance(v, (int, float)) and not isinstance(v, bool)
-                            ]
-                            if numeric_metrics:
-                                current_score = sum(numeric_metrics) / len(numeric_metrics)
+                            # User specified a custom metric that doesn't exist
+                            logger.warning(f"Early stopping metric '{self.config.early_stopping_metric}' not found, using safe numeric average")
+                            current_score = safe_numeric_average(child_program.metrics)
 
                         if current_score is not None and isinstance(current_score, (int, float)):
                             # Check for improvement

@@ -50,5 +50,8 @@ openevolve-run = "openevolve.cli:main"
 [tool.setuptools.packages.find]
 include = ["openevolve*"]
 
+[tool.setuptools.package-data]
+openevolve = ["prompts/defaults/*.txt", "prompts/defaults/*.json"]
+
 [tool.setuptools.dynamic]
 version = {attr = "openevolve._version.__version__"}

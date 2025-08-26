@@ -271,6 +271,11 @@ class Config:
     # Evolution settings
     diff_based_evolution: bool = True
     max_code_length: int = 10000
+    
+    # Early stopping settings
+    early_stopping_patience: Optional[int] = None
+    convergence_threshold: float = 0.001
+    early_stopping_metric: str = "combined_score"
 
     @classmethod
     def from_yaml(cls, path: Union[str, Path]) -> "Config":
@@ -381,6 +386,10 @@ class Config:
             # Evolution settings
             "diff_based_evolution": self.diff_based_evolution,
             "max_code_length": self.max_code_length,
+            # Early stopping settings
+            "early_stopping_patience": self.early_stopping_patience,
+            "convergence_threshold": self.convergence_threshold,
+            "early_stopping_metric": self.early_stopping_metric,
         }
 
     def to_yaml(self, path: Union[str, Path]) -> None:

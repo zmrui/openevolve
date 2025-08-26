@@ -35,13 +35,16 @@ checkpoints:
   keep_best: true
   save_all_programs: false
 
+# Early stopping settings (moved to top level)
+early_stopping_patience: 50          # Stop after 50 iterations without improvement
+convergence_threshold: 0.001         # Minimum improvement required
+early_stopping_metric: "speedup"     # Track speedup metric
+
 # Optimization targets
 optimization:
   target_metric: "speedup"
   target_value: 1.32  # 32% speedup like AlphaEvolve paper
   minimize: false
-  convergence_threshold: 0.001
-  early_stopping_patience: 50
 
 # Logging
 logging:

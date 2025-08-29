@@ -43,6 +43,23 @@ import logging
 import random
 import numpy as np
 from typing import Any, Dict, List, Optional
+import jax
+import jax.numpy as jnp
+
+@jax.jit
+def _solve_roots_jax(coefficients):
+    """
+    JIT-compiled function to find polynomial roots using JAX.
+    This function leverages jax.numpy.roots which is a JIT-compatible
+    implementation for finding roots based on the companion matrix eigenvalues.
+    Assumes coefficients have no leading zeros.
+    """
+    # The problem guarantees all roots are real, so we can safely take the real part
+    # to discard small imaginary parts arising from numerical precision errors.
+    # strip_zeros=False is crucial for JIT compatibility as it ensures a static output shape.
+    real_roots = jnp.real(jnp.roots(coefficients, strip_zeros=False))
+    # Sort the roots in descending order.
+    return jnp.sort(real_roots)[::-1]
 
 class PolynomialReal:
     """
@@ -56,36 +73,40 @@ class PolynomialReal:
     
     def solve(self, problem):
         """
-        Solve the polynomial_real problem.
+        Solve the polynomial_real problem using a JIT-compiled JAX function.
         
         Args:
-            problem: Dictionary containing problem data specific to polynomial_real
+            problem: A list of polynomial coefficients in descending order.
                    
         Returns:
-            The solution in the format expected by the task
+            A list of real roots of the polynomial, sorted in decreasing order.
         """
         try:
-            """
-            Solve the polynomial problem by finding all real roots of the polynomial.
+            coeffs_np = np.array(problem, dtype=np.float64) # Use float64 for better precision
 
-            The polynomial is given as a list of coefficients [aₙ, aₙ₋₁, ..., a₀],
-            representing:
-                p(x) = aₙxⁿ + aₙ₋₁xⁿ⁻¹ + ... + a₀.
-            This method computes the roots, converts them to real numbers if their imaginary parts are negligible,
-            and returns them sorted in decreasing order.
+            # Handle edge cases for zero or constant polynomials
+            # Find the first non-zero coefficient to determine the true degree
+            first_nonzero_idx = 0
+            for i, coeff in enumerate(coeffs_np):
+                if abs(coeff) > 1e-9: # Check for non-zero with a small tolerance
+                    first_nonzero_idx = i
+                    break
+            else: # All coefficients are effectively zero
+                return []
+            
+            trimmed_coeffs = coeffs_np[first_nonzero_idx:]
 
-            :param problem: A list of polynomial coefficients (real numbers) in descending order.
-            :return: A list of real roots of the polynomial, sorted in decreasing order.
-            """
-            coefficients = problem
-            computed_roots = np.roots(coefficients)
-            # Convert roots to real numbers if the imaginary parts are negligible (tol=1e-3)
-            computed_roots = np.real_if_close(computed_roots, tol=1e-3)
-            computed_roots = np.real(computed_roots)
-            # Sort roots in decreasing order.
-            computed_roots = np.sort(computed_roots)[::-1]
-            logging.debug(f"Computed roots (decreasing order): {computed_roots.tolist()}")
-            return computed_roots.tolist()
+            if len(trimmed_coeffs) <= 1:
+                # If after trimming, only one coefficient remains (e.g., [5.0]),
+                # it's a constant non-zero polynomial, which has no roots.
+                return []
+
+            # Use a JIT-compiled function for root finding.
+            # Convert trimmed_coeffs to jax.numpy array with float64.
+            computed_roots = _solve_roots_jax(jnp.array(trimmed_coeffs, dtype=jnp.float64))
+            
+            # block_until_ready() ensures the asynchronous JAX computation is finished.
+            return computed_roots.block_until_ready().tolist()
             
         except Exception as e:
             logging.error(f"Error in solve method: {e}")
@@ -116,8 +137,7 @@ class PolynomialReal:
             """
             coefficients = problem
             reference_roots = np.roots(coefficients)
-            reference_roots = np.real_if_close(reference_roots, tol=1e-3)
-            reference_roots = np.real(reference_roots)
+            reference_roots = np.real(reference_roots) # Problem states all roots are real, so np.real is sufficient
             reference_roots = np.sort(reference_roots)[::-1]
             candidate = np.array(solution)
             reference = np.array(reference_roots)

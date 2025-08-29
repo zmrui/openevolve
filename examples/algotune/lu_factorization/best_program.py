@@ -71,60 +71,35 @@ class LUFactorization:
         pass
     
     def solve(self, problem):
-        """
-        Solve the lu_factorization problem.
-        
-        Args:
-            problem: Dictionary containing problem data specific to lu_factorization
-                   
-        Returns:
-            The solution in the format expected by the task
-        """
+        """Computes the LU factorization of a matrix using an optimized scipy call."""
         try:
-            """
-            Solve the LU factorization problem by computing the LU factorization of matrix A.
-            Uses scipy.linalg.lu to compute the decomposition:
-                A = P L U
-
-            :param problem: A dictionary representing the LU factorization problem.
-            :return: A dictionary with key "LU" containing a dictionary with keys:
-                     "P": The permutation matrix.
-                     "L": The lower triangular matrix.
-                     "U": The upper triangular matrix.
-            """
-            A = problem["matrix"]
-            P, L, U = lu(A)
+            # Using scipy.linalg.lu with optimizations.
+            # np.array with copy=True ensures we don't modify the original matrix data.
+            # This allows using overwrite_a=True for performance, which avoids an
+            # internal copy in the `lu` function.
+            # check_finite=False provides a small speedup by skipping validation.
+            A_copy = np.array(problem["matrix"], copy=True, dtype=float)
+            P, L, U = lu(A_copy, overwrite_a=True, check_finite=False)
             solution = {"LU": {"P": P.tolist(), "L": L.tolist(), "U": U.tolist()}}
             return solution
-            
         except Exception as e:
             logging.error(f"Error in solve method: {e}")
             raise e
     
     def is_solution(self, problem, solution):
         """
-        Check if the provided solution is valid.
-        
-        Args:
-            problem: The original problem
-            solution: The proposed solution
-                   
-        Returns:
-            True if the solution is valid, False otherwise
+        Validate an LU factorization A = P L U.
+
+        Checks:
+        - Presence of 'LU' with 'P','L','U'
+        - Shapes match A (square)
+        - No NaNs/Infs
+        - P is a permutation matrix
+        - L is lower-triangular
+        - U is upper-triangular
+        - P @ L @ U ≈ A
         """
         try:
-            """
-            Validate an LU factorization A = P L U.
-
-            Checks:
-            - Presence of 'LU' with 'P','L','U'
-            - Shapes match A (square)
-            - No NaNs/Infs
-            - P is a permutation matrix (0/1 entries, one 1 per row/col, and orthogonal)
-            - L is lower-triangular (within tolerance)
-            - U is upper-triangular (within tolerance)
-            - P @ L @ U ≈ A
-            """
             A = problem.get("matrix")
             if A is None:
                 logging.error("Problem does not contain 'matrix'.")

@@ -187,9 +187,6 @@ class TemplateManager:
         # 2. Override with custom templates (if provided)
         if self.custom_dir and self.custom_dir.exists():
             self._load_from_directory(self.custom_dir)
-        
-        # 3. Minimal hardcoded fallbacks (for safety/compatibility)
-        self._ensure_minimal_templates()
 
     def _load_from_directory(self, directory: Path) -> None:
         """Load all templates and fragments from a directory"""
@@ -208,23 +205,6 @@ class TemplateManager:
             with open(fragments_file, 'r') as f:
                 loaded_fragments = json.load(f)
                 self.fragments.update(loaded_fragments)
-    
-    def _ensure_minimal_templates(self) -> None:
-        """Ensure critical templates exist (backward compatibility)"""
-        if "system_message" not in self.templates:
-            self.templates["system_message"] = "You are an AI assistant helping with code evolution."
-        if "diff_user" not in self.templates:
-            self.templates["diff_user"] = "# Task\nImprove the program:\n```\n{current_program}\n```"
-        if "full_rewrite_user" not in self.templates:
-            self.templates["full_rewrite_user"] = "# Task\nRewrite the program:\n```\n{current_program}\n```"
-        
-        # Ensure critical fragments exist
-        if "fitness_improved" not in self.fragments:
-            self.fragments["fitness_improved"] = "Fitness improved: {prev} → {current}"
-        if "fitness_declined" not in self.fragments:
-            self.fragments["fitness_declined"] = "Fitness declined: {prev} → {current}"
-        if "no_specific_guidance" not in self.fragments:
-            self.fragments["no_specific_guidance"] = "Focus on improving fitness while maintaining diversity"
 
     def get_template(self, name: str) -> str:
         """Get a template by name"""

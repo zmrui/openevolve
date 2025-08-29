@@ -68,6 +68,7 @@ import random
 from enum import Enum
 import numpy as np
 from scipy import signal
+from scipy.fft import next_fast_len
 from typing import Any, Dict, List, Optional
 
 class FFTConvolution:
@@ -92,9 +93,9 @@ class FFTConvolution:
         """
         try:
             """
-            Solve the convolution problem using the Fast Fourier Transform approach.
-
-            Uses scipy.signal.fftconvolve to compute the convolution of signals x and y.
+            Solve the convolution problem using a manual Fast Fourier Transform approach.
+            This implementation is optimized for performance by using rfft for real signals
+            and choosing an efficient FFT length.
 
             :param problem: A dictionary representing the convolution problem.
             :return: A dictionary with key:
@@ -104,8 +105,49 @@ class FFTConvolution:
             signal_y = np.array(problem["signal_y"])
             mode = problem.get("mode", "full")
 
-            # Perform convolution using FFT
-            convolution_result = signal.fftconvolve(signal_x, signal_y, mode=mode)
+            len_x = len(signal_x)
+            len_y = len(signal_y)
+
+            if min(len_x, len_y) == 0:
+                return {"convolution": []}
+
+            # Determine the size of the FFT
+            # The convolution length is len_x + len_y - 1
+            n = len_x + len_y - 1
+            # Use scipy.fft.next_fast_len to find an efficient FFT size
+            fft_size = next_fast_len(n)
+
+            # Pad signals and perform rfft
+            fft_x = np.fft.rfft(signal_x, n=fft_size)
+            fft_y = np.fft.rfft(signal_y, n=fft_size)
+
+            # Multiply in frequency domain
+            fft_conv = fft_x * fft_y
+
+            # Inverse rfft to get the time-domain convolution
+            full_convolution = np.fft.irfft(fft_conv, n=fft_size)
+
+            # Adjust output based on mode
+            if mode == "full":
+                convolution_result = full_convolution[:n]
+            elif mode == "same":
+                # 'same' mode returns an output of the same length as the first input (signal_x),
+                # centered with respect to the 'full' output.
+                start = (len_y - 1) // 2
+                convolution_result = full_convolution[start : start + len_x]
+            elif mode == "valid":
+                # 'valid' mode returns only the parts where signals fully overlap.
+                # The length is max(0, len_x - len_y + 1) or max(0, len_y - len_x + 1)
+                # depending on which signal is longer.
+                valid_len = max(0, max(len_x, len_y) - min(len_x, len_y) + 1)
+                if len_x >= len_y:
+                    start = len_y - 1
+                    convolution_result = full_convolution[start : start + valid_len]
+                else:
+                    start = len_x - 1
+                    convolution_result = full_convolution[start : start + valid_len]
+            else:
+                raise ValueError(f"Invalid mode: {mode}")
 
             solution = {"convolution": convolution_result.tolist()}
             return solution

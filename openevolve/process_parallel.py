@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from openevolve.config import Config
 from openevolve.database import Program, ProgramDatabase
+from openevolve.utils.metrics_utils import safe_numeric_average
 
 logger = logging.getLogger(__name__)
 
@@ -146,8 +147,6 @@ def _run_iteration_worker(
         ]
 
         # Sort by metrics for top programs
-        from openevolve.utils.metrics_utils import safe_numeric_average
-
         island_programs.sort(
             key=lambda p: p.metrics.get("combined_score", safe_numeric_average(p.metrics)),
             reverse=True,
@@ -179,12 +178,26 @@ def _run_iteration_worker(
         iteration_start = time.time()
 
         # Generate code modification (sync wrapper for async)
-        llm_response = asyncio.run(
-            _worker_llm_ensemble.generate_with_context(
-                system_message=prompt["system"],
-                messages=[{"role": "user", "content": prompt["user"]}],
+        try:
+            llm_response = asyncio.run(
+                _worker_llm_ensemble.generate_with_context(
+                    system_message=prompt["system"],
+                    messages=[{"role": "user", "content": prompt["user"]}],
+                )
             )
-        )
+        except Exception as e:
+            logger.error(f"LLM generation failed: {e}")
+            return SerializableResult(
+                error=f"LLM generation failed: {str(e)}", 
+                iteration=iteration
+            )
+
+        # Check for None response
+        if llm_response is None:
+            return SerializableResult(
+                error="LLM returned None response", 
+                iteration=iteration
+            )
 
         # Parse response based on evolution mode
         if _worker_config.diff_based_evolution:
@@ -447,6 +460,17 @@ class ProcessParallelController:
         # Island management
         programs_per_island = max(1, max_iterations // (self.config.database.num_islands * 10))
         current_island_counter = 0
+        
+        # Early stopping tracking
+        early_stopping_enabled = self.config.early_stopping_patience is not None
+        if early_stopping_enabled:
+            best_score = float('-inf')
+            iterations_without_improvement = 0
+            logger.info(f"Early stopping enabled: patience={self.config.early_stopping_patience}, "
+                       f"threshold={self.config.convergence_threshold}, "
+                       f"metric={self.config.early_stopping_metric}")
+        else:
+            logger.info("Early stopping disabled")
 
         # Process results as they complete
         while (
@@ -541,8 +565,6 @@ class ProcessParallelController:
                             "combined_score" not in child_program.metrics
                             and not self._warned_about_combined_score
                         ):
-                            from openevolve.utils.metrics_utils import safe_numeric_average
-
                             avg_score = safe_numeric_average(child_program.metrics)
                             logger.warning(
                                 f"⚠️  No 'combined_score' metric found in evaluation results. "
@@ -582,6 +604,40 @@ class ProcessParallelController:
                             if avg_score >= target_score:
                                 logger.info(
                                     f"Target score {target_score} reached at iteration {completed_iteration}"
+                                )
+                                break
+
+                    # Check early stopping
+                    if early_stopping_enabled and child_program.metrics:
+                        # Get the metric to track for early stopping
+                        current_score = None
+                        if self.config.early_stopping_metric in child_program.metrics:
+                            current_score = child_program.metrics[self.config.early_stopping_metric]
+                        elif self.config.early_stopping_metric == "combined_score":
+                            # Default metric not found, use safe average (standard pattern)
+                            current_score = safe_numeric_average(child_program.metrics)
+                        else:
+                            # User specified a custom metric that doesn't exist
+                            logger.warning(f"Early stopping metric '{self.config.early_stopping_metric}' not found, using safe numeric average")
+                            current_score = safe_numeric_average(child_program.metrics)
+
+                        if current_score is not None and isinstance(current_score, (int, float)):
+                            # Check for improvement
+                            improvement = current_score - best_score
+                            if improvement >= self.config.convergence_threshold:
+                                best_score = current_score
+                                iterations_without_improvement = 0
+                                logger.debug(f"New best score: {best_score:.4f} (improvement: {improvement:+.4f})")
+                            else:
+                                iterations_without_improvement += 1
+                                logger.debug(f"No improvement: {iterations_without_improvement}/{self.config.early_stopping_patience}")
+
+                            # Check if we should stop
+                            if iterations_without_improvement >= self.config.early_stopping_patience:
+                                logger.info(
+                                    f"Early stopping triggered at iteration {completed_iteration}: "
+                                    f"No improvement for {iterations_without_improvement} iterations "
+                                    f"(best score: {best_score:.4f})"
                                 )
                                 break
 

@@ -56,12 +56,7 @@ class LLMConfig(LLMModelConfig):
     retry_delay: int = 5
 
     # n-model configuration for evolution LLM ensemble
-    models: List[LLMModelConfig] = field(
-        default_factory=lambda: [
-            LLMModelConfig(name="gpt-4o-mini", weight=0.8),
-            LLMModelConfig(name="gpt-4o", weight=0.2),
-        ]
-    )
+    models: List[LLMModelConfig] = field(default_factory=list)
 
     # n-model configuration for evaluator LLM ensemble
     evaluator_models: List[LLMModelConfig] = field(default_factory=lambda: [])
@@ -75,24 +70,34 @@ class LLMConfig(LLMModelConfig):
     def __post_init__(self):
         """Post-initialization to set up model configurations"""
         # Handle backward compatibility for primary_model(_weight) and secondary_model(_weight).
-        if (self.primary_model or self.primary_model_weight) and len(self.models) < 1:
-            # Ensure we have a primary model
-            self.models.append(LLMModelConfig())
         if self.primary_model:
-            self.models[0].name = self.primary_model
-        if self.primary_model_weight:
-            self.models[0].weight = self.primary_model_weight
+            # Create primary model
+            primary_model = LLMModelConfig(
+                name=self.primary_model,
+                weight=self.primary_model_weight or 1.0
+            )
+            self.models.append(primary_model)
 
-        if (self.secondary_model or self.secondary_model_weight) and len(self.models) < 2:
-            # Ensure we have a second model
-            self.models.append(LLMModelConfig())
         if self.secondary_model:
-            self.models[1].name = self.secondary_model
-        if self.secondary_model_weight:
-            self.models[1].weight = self.secondary_model_weight
+            # Create secondary model (only if weight > 0)
+            if self.secondary_model_weight is None or self.secondary_model_weight > 0:
+                secondary_model = LLMModelConfig(
+                    name=self.secondary_model,
+                    weight=self.secondary_model_weight if self.secondary_model_weight is not None else 0.2
+                )
+                self.models.append(secondary_model)
+
+        # Only validate if this looks like a user config (has some model info)
+        # Don't validate during internal/default initialization
+        if (self.primary_model or self.secondary_model or 
+            self.primary_model_weight or self.secondary_model_weight) and not self.models:
+            raise ValueError(
+                "No LLM models configured. Please specify 'models' array or "
+                "'primary_model' in your configuration."
+            )
 
         # If no evaluator models are defined, use the same models as for evolution
-        if not self.evaluator_models or len(self.evaluator_models) < 1:
+        if not self.evaluator_models:
             self.evaluator_models = self.models.copy()
 
         # Update models with shared configuration values
@@ -266,6 +271,11 @@ class Config:
     # Evolution settings
     diff_based_evolution: bool = True
     max_code_length: int = 10000
+    
+    # Early stopping settings
+    early_stopping_patience: Optional[int] = None
+    convergence_threshold: float = 0.001
+    early_stopping_metric: str = "combined_score"
 
     @classmethod
     def from_yaml(cls, path: Union[str, Path]) -> "Config":
@@ -376,6 +386,10 @@ class Config:
             # Evolution settings
             "diff_based_evolution": self.diff_based_evolution,
             "max_code_length": self.max_code_length,
+            # Early stopping settings
+            "early_stopping_patience": self.early_stopping_patience,
+            "convergence_threshold": self.convergence_threshold,
+            "early_stopping_metric": self.early_stopping_metric,
         }
 
     def to_yaml(self, path: Union[str, Path]) -> None:

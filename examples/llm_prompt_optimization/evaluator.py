@@ -47,8 +47,8 @@ prompt_file = os.environ.get("OPENEVOLVE_PROMPT")
 if not prompt_file:
     # Default to a generic dataset config if not using the wrapper script
     evaluator_dir = os.path.dirname(os.path.abspath(__file__))
-    DATASET_CONFIG_PATH = os.path.join(evaluator_dir, "dataset_config.yaml")
-    print("Warning: OPENEVOLVE_PROMPT not set. Using default dataset_config.yaml")
+    DATASET_CONFIG_PATH = os.path.join(evaluator_dir, "dataset_settings.yaml")
+    print("Warning: OPENEVOLVE_PROMPT not set. Using default dataset_settings.yaml")
 else:
     basename = os.path.basename(prompt_file)
     dataset_filename = basename.replace("_prompt.txt", "_prompt_dataset.yaml").replace(

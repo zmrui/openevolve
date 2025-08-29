@@ -66,14 +66,40 @@ class OpenAILLM(LLMInterface):
         formatted_messages.extend(messages)
 
         # Set up generation parameters
-        if self.api_base == "https://api.openai.com/v1" and str(self.model).lower().startswith("o"):
-            # For o-series models
+        # Define OpenAI reasoning models that require max_completion_tokens
+        # These models don't support temperature/top_p and use different parameters
+        OPENAI_REASONING_MODEL_PREFIXES = (
+            # O-series reasoning models
+            "o1-", "o1",  # o1, o1-mini, o1-preview
+            "o3-", "o3",  # o3, o3-mini, o3-pro  
+            "o4-",        # o4-mini
+            # GPT-5 series are also reasoning models
+            "gpt-5-", "gpt-5"  # gpt-5, gpt-5-mini, gpt-5-nano
+            # The GPT OSS series are also reasoning models
+            "gpt-oss-120b", "gpt-oss-20b"
+        )
+
+        # Check if this is an OpenAI reasoning model
+        model_lower = str(self.model).lower()
+        is_openai_reasoning_model = (
+            self.api_base == "https://api.openai.com/v1" and 
+            model_lower.startswith(OPENAI_REASONING_MODEL_PREFIXES)
+        )
+
+        if is_openai_reasoning_model:
+            # For OpenAI reasoning models
             params = {
                 "model": self.model,
                 "messages": formatted_messages,
                 "max_completion_tokens": kwargs.get("max_tokens", self.max_tokens),
             }
+            # Add optional reasoning parameters if provided
+            if "reasoning_effort" in kwargs:
+                params["reasoning_effort"] = kwargs["reasoning_effort"]
+            if "verbosity" in kwargs:
+                params["verbosity"] = kwargs["verbosity"]
         else:
+            # Standard parameters for all other models
             params = {
                 "model": self.model,
                 "messages": formatted_messages,
@@ -81,6 +107,10 @@ class OpenAILLM(LLMInterface):
                 "top_p": kwargs.get("top_p", self.top_p),
                 "max_tokens": kwargs.get("max_tokens", self.max_tokens),
             }
+
+            # Handle reasoning_effort for open source reasoning models.
+            if "reasoning_effort" in kwargs:
+                params["reasoning_effort"] = kwargs["reasoning_effort"]
 
         # Add seed parameter for reproducibility if configured
         # Skip seed parameter for Google AI Studio endpoint as it doesn't support it

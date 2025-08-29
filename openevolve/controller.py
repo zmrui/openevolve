@@ -137,6 +137,9 @@ class OpenEvolve:
             if not self.file_extension.startswith("."):
                 self.file_extension = f".{self.file_extension}"
 
+        # Set environment variable for LLM message logging
+        os.environ['OPENEVOLVE_CURRENT_PROGRAM_OUTPUT_DIR'] = self.output_dir
+        
         # Initialize components
         self.llm_ensemble = LLMEnsemble(self.config.llm.models)
         self.llm_evaluator_ensemble = LLMEnsemble(self.config.llm.evaluator_models)

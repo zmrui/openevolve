@@ -3,13 +3,14 @@ OpenAI API interface for LLMs
 """
 
 import asyncio
+import json
 import logging
+import os
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import openai
 
-from openevolve.config import LLMConfig
 from openevolve.llm.base import LLMInterface
 
 logger = logging.getLogger(__name__)
@@ -150,13 +151,72 @@ class OpenAILLM(LLMInterface):
                     logger.error(f"All {retries + 1} attempts failed with error: {str(e)}")
                     raise
 
+    def _save_llm_messages(self, sent_message: Dict[str, Any], received_message: Dict[str, Any]) -> None:
+        """Save sent and received LLM messages as JSON files"""
+        # Get output directory from environment variable
+        output_dir = os.environ.get('OPENEVOLVE_CURRENT_PROGRAM_OUTPUT_DIR')
+        if not output_dir:
+            return
+            
+        # Create llm_messages directory
+        llm_dir = os.path.join(output_dir, "llm_messages")
+        os.makedirs(llm_dir, exist_ok=True)
+        
+        # Generate unique timestamp-based filename
+        timestamp = str(int(time.time() * 1000000))  # microseconds for uniqueness
+        
+        # Save sent message
+        sent_path = os.path.join(llm_dir, f"{timestamp}_sent.json")
+        with open(sent_path, "w") as f:
+            json.dump(sent_message, f, indent=2)
+            
+        # Save received message
+        received_path = os.path.join(llm_dir, f"{timestamp}_received.json")
+        with open(received_path, "w") as f:
+            json.dump(received_message, f, indent=2)
+
     async def _call_api(self, params: Dict[str, Any]) -> str:
         """Make the actual API call"""
+        # Save sent message
+        sent_message = {
+            "timestamp": time.time(),
+            "model": params.get("model"),
+            "parameters": params
+        }
+        
         # Use asyncio to run the blocking API call in a thread pool
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
             None, lambda: self.client.chat.completions.create(**params)
         )
+        
+        # Save received message
+        received_message = {
+            "timestamp": time.time(),
+            "model": params.get("model"),
+            "response": {
+                "id": getattr(response, "id", None),
+                "object": getattr(response, "object", None),
+                "created": getattr(response, "created", None),
+                "model": getattr(response, "model", None),
+                "choices": [
+                    {
+                        "index": choice.index,
+                        "message": {
+                            "role": choice.message.role,
+                            "content": choice.message.content
+                        },
+                        "finish_reason": choice.finish_reason
+                    }
+                    for choice in response.choices
+                ],
+                "usage": getattr(response, "usage", None).__dict__ if hasattr(response, "usage") and response.usage else None
+            }
+        }
+        
+        # Save messages to JSON files
+        self._save_llm_messages(sent_message, received_message)
+        
         # Logging of system prompt, user message and response content
         logger = logging.getLogger(__name__)
         logger.debug(f"API parameters: {params}")
